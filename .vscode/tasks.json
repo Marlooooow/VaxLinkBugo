@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Prepare VaxLink live configuration",
+      "type": "process",
+      "command": "dart",
+      "args": ["run", "tool/export_live_config.dart"],
+      "options": {"cwd": "${workspaceFolder}"},
+      "problemMatcher": []
+    }
+  ]
+}

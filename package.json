@@ -1,0 +1,17 @@
+{
+  "scripts": {
+    "test:database": "node --test supabase/tests/family-workflows.test.mjs supabase/tests/demo-seed.test.mjs",
+    "seed:demo:preview": "node tool/seed_supabase_demo.mjs",
+    "test:activation": "node --experimental-strip-types --test supabase/tests/activation-handler.test.mjs",
+    "test:sms": "node --experimental-strip-types --test supabase/tests/sms-utils.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/server": "^1.4.1",
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.112.4"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "supabase": "^2.116.0"
+  }
+}

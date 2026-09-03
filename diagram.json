@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "author": "MARLO B. ROMERO",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": 14.3,
+      "left": -14.6,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": -128,
+      "left": -23.2,
+      "attrs": { "pins": "i2c" }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot1",
+      "top": 10,
+      "left": -160,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz1",
+      "top": 21.6,
+      "left": 165,
+      "attrs": { "mode": "accurate" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 100,
+      "left": 260,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-serial-monitor",
+      "id": "serial",
+      "top": 150,
+      "left": 400,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    [ "pot1:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "pot1:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "pot1:SIG", "esp:34", "green", [ "v0" ] ],
+    [ "lcd1:GND", "esp:GND.1", "black", [ "h0" ] ],
+    [ "lcd1:VCC", "esp:5V", "red", [ "h0" ] ],
+    [ "lcd1:SDA", "esp:21", "green", [ "h0" ] ],
+    [ "lcd1:SCL", "esp:22", "green", [ "h0" ] ],
+    [ "led1:A", "esp:15", "green", [ "v-17.2", "h-150.6" ] ],
+    [ "led1:C", "esp:GND.2", "black", [ "v0" ] ],
+    [ "bz1:2", "esp:25", "green", [ "v0", "h-67.2" ] ],
+    [ "bz1:1", "esp:GND.2", "black", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}
