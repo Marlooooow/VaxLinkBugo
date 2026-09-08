@@ -1,7 +1,7 @@
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
-import '../models/child_profile.dart';
+import '../models/child/child_profile.dart';
 import '../models/pnip_schedule_entry.dart';
 import '../models/vaccination_assessment.dart';
 import '../repositories/vaccination_repository.dart';
@@ -103,9 +103,7 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
+                  border: Border.all(color: const Color(0xFFE7EDF4)),
                 ),
                 child: Column(
                   children: [
@@ -503,9 +501,7 @@ class _InformationCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
+        border: Border.all(color: const Color(0xFFE7EDF4)),
       ),
       child: Material(
         color: Colors.transparent,
