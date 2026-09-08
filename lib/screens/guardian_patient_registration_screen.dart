@@ -9,6 +9,7 @@ import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_inv
 import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_relationship_options.dart';
 import '../models/person_name.dart';
 import '../repositories/child_repository.dart';
+import '../widgets/worker_app_bar_actions.dart';
 import 'vaccination_assessment_screen.dart';
 
 class GuardianPatientRegistrationScreen extends StatefulWidget {
@@ -413,6 +414,7 @@ class _GuardianPatientRegistrationScreenState
           'Guardian & Child Registration',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: const [WorkerAppBarActions()],
       ),
       body: SafeArea(
         child: Form(

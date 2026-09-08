@@ -14,7 +14,6 @@ class SupabaseAdvisoryInsightRepository
 
   @override
   Future<List<AdvisoryInsight>> getFacilityInsights() async {
-    await _syncChildAdvisories();
     final profile = await _client
         .from('profiles')
         .select('facility_id')
@@ -36,7 +35,6 @@ class SupabaseAdvisoryInsightRepository
     int limit = 20,
     int offset = 0,
   }) async {
-    if (offset == 0) await _syncChildAdvisories();
     final result = Map<String, dynamic>.from(
       await _client.rpc(
             'get_advisory_insight_page',
@@ -64,17 +62,6 @@ class SupabaseAdvisoryInsightRepository
       hasMore: result['has_more'] == true,
       nextOffset: (result['next_offset'] as num?)?.toInt() ?? 0,
     );
-  }
-
-  Future<void> _syncChildAdvisories() async {
-    try {
-      await _client.rpc('sync_child_advisory_insights');
-    } on PostgrestException {
-      // Keep existing advisory rows usable if synchronization is unavailable
-      // or temporarily fails. Once the RPC is available, the next load will
-      // retry it before reading the facility list.
-      return;
-    }
   }
 
   @override

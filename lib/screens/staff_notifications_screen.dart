@@ -10,6 +10,7 @@ import 'vaccination_reminders_screen.dart';
 import 'advisory_insights_screen.dart';
 import 'earlier_appointment_offers_screen.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/worker_app_bar_actions.dart';
 import 'guardian_password_reset_screen.dart';
 import '../theme/status_colors.dart';
 
@@ -57,7 +58,7 @@ class _StaffNotificationBellState extends State<StaffNotificationBell>
       builder: (_) =>
           StaffNotificationsScreen(user: widget.user, repository: _repository),
     );
-    Navigator.of(context, rootNavigator: true).push(route).then((_) {
+    Navigator.of(context).push(route).then((_) {
       if (mounted) _reload();
     });
   }
@@ -155,6 +156,11 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
     } catch (_) {
       /* Render retry state through FutureBuilder. */
     }
+  }
+
+  void _setUnreadFilter(bool unreadOnly) {
+    setState(() => _unreadOnly = unreadOnly);
+    _reload();
   }
 
   Future<void> _loadMore() async {
@@ -266,7 +272,7 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
           onPressed: _saving ? null : _reload,
           icon: const Icon(Icons.refresh_rounded),
         ),
-        const SizedBox(width: 8),
+        const WorkerAppBarActions(showNotifications: false),
       ],
     ),
     body: SafeArea(
@@ -323,6 +329,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                                   count: page?.overallCount ?? 0,
                                   icon: Icons.notifications_outlined,
                                   color: Theme.of(context).colorScheme.primary,
+                                  selected: !_unreadOnly,
+                                  onTap: () => _setUnreadFilter(false),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -332,6 +340,8 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                                   count: page?.unreadCount ?? 0,
                                   icon: Icons.mark_email_unread_outlined,
                                   color: StatusColors.information,
+                                  selected: _unreadOnly,
+                                  onTap: () => _setUnreadFilter(true),
                                 ),
                               ),
                             ],
@@ -345,10 +355,7 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                                     : null,
                                 label: const Text('All'),
                                 selected: !_unreadOnly,
-                                onSelected: (_) {
-                                  setState(() => _unreadOnly = false);
-                                  _reload();
-                                },
+                                onSelected: (_) => _setUnreadFilter(false),
                               ),
                               const SizedBox(width: 8),
                               ChoiceChip(
@@ -359,10 +366,7 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                                   'Unread (${page?.unreadCount ?? 0})',
                                 ),
                                 selected: _unreadOnly,
-                                onSelected: (_) {
-                                  setState(() => _unreadOnly = true);
-                                  _reload();
-                                },
+                                onSelected: (_) => _setUnreadFilter(true),
                               ),
                               const Spacer(),
                               TextButton.icon(
@@ -500,54 +504,73 @@ class _NotificationCountCard extends StatelessWidget {
   final int count;
   final IconData icon;
   final Color color;
+  final bool selected;
+  final VoidCallback onTap;
 
   const _NotificationCountCard({
     required this.label,
     required this.count,
     required this.icon,
     required this.color,
+    required this.selected,
+    required this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: color.withValues(alpha: 0.22)),
-    ),
-    child: Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    label: '$label notifications: $count',
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.13),
-            shape: BoxShape.circle,
+            color: color.withValues(alpha: selected ? 0.12 : 0.08),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: color.withValues(alpha: selected ? 0.52 : 0.22),
+              width: selected ? 1.5 : 1,
+            ),
           ),
-          child: Icon(icon, color: color, size: 22),
-        ),
-        const Spacer(),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              '$count',
-              style: TextStyle(
-                color: color,
-                fontSize: 25,
-                fontWeight: FontWeight.w800,
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.13),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 22),
               ),
-            ),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '$count',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 25,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-      ],
+      ),
     ),
   );
 }

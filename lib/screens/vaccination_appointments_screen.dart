@@ -314,7 +314,10 @@ class _AppointmentCard extends StatelessWidget {
     final color = _statusColor(item.status);
     return Card(
       margin: const EdgeInsets.only(bottom: 11),
+      clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
+        shape: const Border(),
+        collapsedShape: const Border(),
         leading: CircleAvatar(
           backgroundColor: color.withValues(alpha: 0.10),
           child: Icon(Icons.event_outlined, color: color),

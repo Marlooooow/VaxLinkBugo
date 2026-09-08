@@ -8,6 +8,7 @@ import '../repositories/repository_registry.dart';
 import '../repositories/staff_repository.dart';
 import '../utils/user_facing_error.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/worker_app_bar_actions.dart';
 
 class StaffManagementScreen extends StatefulWidget {
   const StaffManagementScreen({super.key});
@@ -251,6 +252,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         'Staff Management',
         style: TextStyle(fontWeight: FontWeight.w800),
       ),
+      actions: const [WorkerAppBarActions()],
     ),
     floatingActionButton: FloatingActionButton.extended(
       onPressed: _addStaff,

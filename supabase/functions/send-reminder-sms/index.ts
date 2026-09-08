@@ -181,8 +181,8 @@ Deno.serve(async (request) => {
       result = providerResult(response.status, payload)
       deliveryStatus = result.accepted ? 'accepted' : 'failed'
     } catch {
-      // Do not retry automatically: the provider may have accepted the request
-      // before the connection failed. Staff can verify Semaphore history first.
+      // Do not retry automatically: the delivery service may have accepted the
+      // request before the connection failed. Staff should check history first.
     }
 
     await admin.from('reminder_sms_deliveries').update({
@@ -194,10 +194,10 @@ Deno.serve(async (request) => {
 
     const outcome = result.accepted ? 'provider_accepted' : 'delivery_failed'
     const notes = result.accepted
-      ? 'SMS request accepted by Semaphore. This does not confirm handset delivery.'
+      ? 'SMS delivery request accepted. This does not confirm handset delivery.'
       : deliveryStatus === 'uncertain'
-      ? 'SMS provider response was uncertain. Verify Semaphore history before retrying.'
-      : 'Semaphore rejected the SMS request. Review provider status and contact information.'
+      ? 'SMS delivery status is uncertain. Check delivery history before retrying.'
+      : 'SMS delivery request was rejected. Review the mobile number before retrying.'
     const followUpRows = group.map((target) => ({
       follow_up_code: `FUP-SMS-${Date.now()}-${crypto.randomUUID().replaceAll('-', '').substring(0, 12).toUpperCase()}`,
       reminder_id: target.reminder.id,

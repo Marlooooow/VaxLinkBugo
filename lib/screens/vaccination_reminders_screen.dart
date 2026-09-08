@@ -12,6 +12,7 @@ import '../repositories/reminder_repository.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/app_loading.dart';
 import '../widgets/worker_app_bar_actions.dart';
+import '../widgets/guardian_app_bar_actions.dart';
 import 'child_profile_screen.dart';
 import 'appointment_form_screen.dart';
 import 'earlier_appointment_offers_screen.dart';
@@ -93,6 +94,14 @@ class _VaccinationRemindersScreenState
     }
   }
 
+  void _setFilter(VaccinationReminderStatus? status) {
+    setState(() {
+      _filter = status;
+      _guardianVisibleChildLimit = 10;
+      _selectedIds.clear();
+    });
+  }
+
   Future<List<VaccinationReminder>> _loadInitialFacilityPage() async {
     final page = await _repository.getFacilityFollowUpsPage();
     _facilityOffset = page.nextOffset;
@@ -170,9 +179,9 @@ class _VaccinationRemindersScreenState
         live
             ? ReminderFollowUpOutcome.providerAccepted
             : ReminderFollowUpOutcome.reminderSent,
-        live ? 'SMS requests accepted by Semaphore' : 'Mock SMS reminders sent',
+        live ? 'SMS delivery requests accepted' : 'Mock SMS reminders sent',
         live
-            ? 'SMS delivery requested through Semaphore.'
+            ? 'SMS delivery requested.'
             : 'Mock SMS reminder queued for delivery.',
         null,
       ),
@@ -376,7 +385,7 @@ class _VaccinationRemindersScreenState
     final explanation = switch (choice) {
       _BatchChoice.mockSms =>
         live
-            ? 'Semaphore will receive each guardian’s mobile number and a vaccination reminder. Provider acceptance does not guarantee handset delivery. Send at most 20 at a time.'
+            ? 'The selected vaccine reminders will be grouped into one SMS per guardian and child. Each message includes the child, vaccines, doses, statuses, and due dates. Acceptance confirms that the delivery request was submitted, not that it reached the phone. Select at most 20 vaccine reminders at a time.'
             : 'This simulates SMS delivery. No actual messages will be sent.',
       _BatchChoice.printList =>
         'This records a prototype action only. It does not generate or print a document.',
@@ -395,7 +404,7 @@ class _VaccinationRemindersScreenState
         title: Text(title),
         content: SingleChildScrollView(
           child: Text(
-            'Apply to ${_selectedIds.length} selected reminders?\n\n$explanation\n\nA separate follow-up record will be saved for each reminder.',
+            'Apply to ${_selectedIds.length} selected vaccine reminders?\n\n$explanation\n\nA separate follow-up history entry will be saved for each selected vaccine reminder for audit purposes.',
           ),
         ),
         actions: [
@@ -456,7 +465,9 @@ class _VaccinationRemindersScreenState
         widget.healthWorkerMode ? 'Follow-up Reminders' : 'Reminders',
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
-      actions: widget.healthWorkerMode ? const [WorkerAppBarActions()] : null,
+      actions: widget.healthWorkerMode
+          ? const [WorkerAppBarActions()]
+          : const [GuardianAppBarActions(showNotifications: false)],
     ),
     body: FutureBuilder<List<VaccinationReminder>>(
       future: _reminders,
@@ -556,11 +567,19 @@ class _VaccinationRemindersScreenState
                               }),
                             );
                           }
-                          return _Summary(summary: summarySnapshot.data!);
+                          return _Summary(
+                            summary: summarySnapshot.data!,
+                            selectedStatus: _filter,
+                            onSelected: _setFilter,
+                          );
                         },
                       )
                     else
-                      _Summary(summary: ReminderSummary.fromItems(reminders)),
+                      _Summary(
+                        summary: ReminderSummary.fromItems(reminders),
+                        selectedStatus: _filter,
+                        onSelected: _setFilter,
+                      ),
                     const SizedBox(height: 14),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -569,10 +588,7 @@ class _VaccinationRemindersScreenState
                           ChoiceChip(
                             label: const Text('All'),
                             selected: _filter == null,
-                            onSelected: (_) => setState(() {
-                              _filter = null;
-                              _guardianVisibleChildLimit = 10;
-                            }),
+                            onSelected: (_) => _setFilter(null),
                           ),
                           const SizedBox(width: 8),
                           for (final status in _availableFilters(
@@ -581,10 +597,7 @@ class _VaccinationRemindersScreenState
                             ChoiceChip(
                               label: Text(_statusLabel(status)),
                               selected: _filter == status,
-                              onSelected: (_) => setState(() {
-                                _filter = status;
-                                _guardianVisibleChildLimit = 10;
-                              }),
+                              onSelected: (_) => _setFilter(status),
                             ),
                             const SizedBox(width: 8),
                           ],
@@ -875,8 +888,14 @@ class _SummaryUnavailable extends StatelessWidget {
 
 class _Summary extends StatelessWidget {
   final ReminderSummary summary;
+  final VaccinationReminderStatus? selectedStatus;
+  final ValueChanged<VaccinationReminderStatus> onSelected;
 
-  const _Summary({required this.summary});
+  const _Summary({
+    required this.summary,
+    required this.selectedStatus,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -887,6 +906,8 @@ class _Summary extends StatelessWidget {
             '${summary.dueToday}',
             'Due today',
             StatusColors.due,
+            selected: selectedStatus == VaccinationReminderStatus.dueToday,
+            onTap: () => onSelected(VaccinationReminderStatus.dueToday),
           ),
         ),
         const SizedBox(width: 8),
@@ -895,6 +916,8 @@ class _Summary extends StatelessWidget {
             '${summary.overdue}',
             'Overdue',
             StatusColors.overdue,
+            selected: selectedStatus == VaccinationReminderStatus.overdue,
+            onTap: () => onSelected(VaccinationReminderStatus.overdue),
           ),
         ),
         const SizedBox(width: 8),
@@ -903,6 +926,8 @@ class _Summary extends StatelessWidget {
             '${summary.upcoming}',
             'Upcoming',
             StatusColors.upcoming,
+            selected: selectedStatus == VaccinationReminderStatus.upcoming,
+            onTap: () => onSelected(VaccinationReminderStatus.upcoming),
           ),
         ),
       ],
@@ -914,31 +939,56 @@ class _SummaryItem extends StatelessWidget {
   final String value;
   final String label;
   final Color color;
+  final bool selected;
+  final VoidCallback onTap;
 
-  const _SummaryItem(this.value, this.label, this.color);
+  const _SummaryItem(
+    this.value,
+    this.label,
+    this.color, {
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 13),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.07),
-      borderRadius: BorderRadius.circular(15),
-      border: Border.all(color: color.withValues(alpha: 0.18)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            color: color,
-            fontSize: 21,
-            fontWeight: FontWeight.w900,
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    label: '$label reminders: $value',
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 13),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: selected ? 0.12 : 0.07),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: color.withValues(alpha: selected ? 0.5 : 0.18),
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 2),
+              FittedBox(
+                child: Text(label, style: const TextStyle(fontSize: 11.5)),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 2),
-        FittedBox(child: Text(label, style: const TextStyle(fontSize: 11.5))),
-      ],
+      ),
     ),
   );
 }
@@ -1640,7 +1690,7 @@ String _channelLabel(VaccinationReminderChannel channel) => switch (channel) {
 
 String _outcomeLabel(ReminderFollowUpOutcome outcome) => switch (outcome) {
   ReminderFollowUpOutcome.reminderSent => 'Mock reminder sent',
-  ReminderFollowUpOutcome.providerAccepted => 'Accepted by SMS provider',
+  ReminderFollowUpOutcome.providerAccepted => 'SMS request accepted',
   ReminderFollowUpOutcome.deliveryFailed => 'SMS delivery failed or uncertain',
   ReminderFollowUpOutcome.assigned => 'Assigned to a health worker',
   ReminderFollowUpOutcome.contacted => 'Guardian contacted',

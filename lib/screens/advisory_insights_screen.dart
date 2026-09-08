@@ -43,7 +43,6 @@ class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasMore = false;
-  bool _generating = false;
 
   @override
   void initState() {
@@ -122,46 +121,6 @@ class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
     }
   }
 
-  Future<void> _generate() async {
-    if (_generating ||
-        _saving.isNotEmpty ||
-        _repository is! AdvisoryInsightGenerator) {
-      return;
-    }
-    setState(() => _generating = true);
-    try {
-      final count = await (_repository as AdvisoryInsightGenerator)
-          .generateFacilityInsights();
-      if (!mounted) return;
-      setState(() => _focusedInsightId = null);
-      await _loadFirstPage();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            count == 0
-                ? 'No new operational insights were generated.'
-                : '$count new operational insight${count == 1 ? '' : 's'} saved.',
-          ),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserFacingError.message(
-              error,
-              fallback: 'New insights could not be generated.',
-            ),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _generating = false);
-    }
-  }
-
   Future<void> _update(
     AdvisoryInsight insight,
     AdvisoryInsightStatus status,
@@ -223,23 +182,12 @@ class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
         style: TextStyle(fontWeight: FontWeight.w800),
       ),
       actions: [
-        const WorkerAppBarActions(),
-        if (_repository is AdvisoryInsightGenerator)
-          IconButton(
-            tooltip: 'Generate operational insights',
-            onPressed: _generating || _saving.isNotEmpty ? null : _generate,
-            icon: _generating
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.auto_awesome_rounded),
-          ),
         IconButton(
           tooltip: 'Refresh insights',
           onPressed: _saving.isNotEmpty ? null : _loadFirstPage,
           icon: const Icon(Icons.refresh_rounded),
         ),
+        const WorkerAppBarActions(),
       ],
     ),
     body: _loading
@@ -308,7 +256,10 @@ class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
                       _filter('High', AdvisoryInsightSeverity.high),
                       _filter('Medium', AdvisoryInsightSeverity.medium),
                       _filter('Low', AdvisoryInsightSeverity.low),
-                      _statusFilter('New', AdvisoryInsightStatus.newInsight),
+                      _statusFilter(
+                        'Unreviewed',
+                        AdvisoryInsightStatus.newInsight,
+                      ),
                     ],
                   ),
                 ),
@@ -471,7 +422,12 @@ class _InsightSummary extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _count('${summary.newCount}', 'New', Colors.blue, onNewTap),
+          child: _count(
+            '${summary.newCount}',
+            'Unreviewed',
+            Colors.blue,
+            onNewTap,
+          ),
         ),
       ],
     );
@@ -541,7 +497,10 @@ class _InsightCard extends StatelessWidget {
     };
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
+        shape: const Border(),
+        collapsedShape: const Border(),
         initiallyExpanded: initiallyExpanded,
         key: PageStorageKey('insight-${insight.id}'),
         leading: CircleAvatar(

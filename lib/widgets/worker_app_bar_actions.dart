@@ -10,7 +10,9 @@ import '../repositories/repository_registry.dart';
 
 /// Shared actions for every health-worker feature header.
 class WorkerAppBarActions extends StatelessWidget {
-  const WorkerAppBarActions({super.key});
+  final bool showNotifications;
+
+  const WorkerAppBarActions({super.key, this.showNotifications = true});
 
   Future<void> _logout(BuildContext context) async {
     final user = SessionContext.user;
@@ -56,7 +58,8 @@ class WorkerAppBarActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const ThemeModeButton(),
-        StaffNotificationBell(user: user, repository: repository),
+        if (showNotifications)
+          StaffNotificationBell(user: user, repository: repository),
         PopupMenuButton<String>(
           tooltip: 'Menu',
           icon: const Icon(Icons.menu_rounded),

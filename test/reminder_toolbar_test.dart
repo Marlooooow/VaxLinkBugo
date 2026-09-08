@@ -35,6 +35,44 @@ class _Reminders extends Fake implements ReminderRepository {
 }
 
 void main() {
+  testWidgets('summary cards control the reminder status filter', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: VaccinationRemindersScreen.healthWorker(repository: _Reminders()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.bySemanticsLabel(RegExp(r'Overdue reminders:')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Overdue'))
+          .selected,
+      isTrue,
+    );
+
+    await tester.tap(
+      find.bySemanticsLabel(RegExp(r'Upcoming reminders:')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Upcoming'))
+          .selected,
+      isTrue,
+    );
+  });
+
   testWidgets(
     'Full-screen actions keep selection header fixed and cancel preserves selection',
     (tester) async {

@@ -6,6 +6,8 @@ import '../services/session_context.dart';
 import '../utils/user_facing_error.dart';
 import '../widgets/offer_timing_panel.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/guardian_app_bar_actions.dart';
+import '../widgets/worker_app_bar_actions.dart';
 
 class EarlierAppointmentOffersScreen extends StatefulWidget {
   final String? guardianId;
@@ -170,6 +172,10 @@ class _EarlierAppointmentOffersScreenState
           onPressed: _responding.isEmpty ? _refresh : null,
           icon: const Icon(Icons.refresh),
         ),
+        if (widget.healthWorkerMode)
+          const WorkerAppBarActions()
+        else
+          const GuardianAppBarActions(),
       ],
     ),
     body: SafeArea(

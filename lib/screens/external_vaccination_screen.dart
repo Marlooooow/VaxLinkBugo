@@ -8,6 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/referral.dart';
 import '../repositories/referral_repository.dart';
 import '../services/mock_identifier_generator.dart';
+import '../widgets/worker_app_bar_actions.dart';
 import 'referral_group_details_screen.dart';
 import 'referral_history_screen.dart';
 
@@ -141,6 +142,7 @@ class _ExternalVaccinationScreenState extends State<ExternalVaccinationScreen> {
           'External Vaccination',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: const [WorkerAppBarActions()],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

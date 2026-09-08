@@ -18,12 +18,14 @@ class GuardianAppBarActions extends StatefulWidget {
   final AppUser? user;
   final AuthRepository? authRepository;
   final ReminderRepository? reminderRepository;
+  final bool showNotifications;
 
   const GuardianAppBarActions({
     super.key,
     this.user,
     this.authRepository,
     this.reminderRepository,
+    this.showNotifications = true,
   });
 
   @override
@@ -42,7 +44,9 @@ class _GuardianAppBarActionsState extends State<GuardianAppBarActions> {
     _reminders =
         widget.reminderRepository ??
         RepositoryRegistry.instance.reminderRepository;
-    _reminderRows = _loadReminders();
+    _reminderRows = widget.showNotifications
+        ? _loadReminders()
+        : Future.value(const <VaccinationReminder>[]);
   }
 
   Future<List<VaccinationReminder>> _loadReminders() async {
@@ -126,30 +130,31 @@ class _GuardianAppBarActionsState extends State<GuardianAppBarActions> {
       mainAxisSize: MainAxisSize.min,
       children: [
         const ThemeModeButton(),
-        FutureBuilder<List<VaccinationReminder>>(
-          future: _reminderRows,
-          builder: (context, snapshot) {
-            final ready =
-                snapshot.connectionState == ConnectionState.done &&
-                !snapshot.hasError;
-            final unread = (snapshot.data ?? const <VaccinationReminder>[])
-                .where((reminder) => reminder.hasUnreadNotification)
-                .length;
-            return IconButton(
-              tooltip: snapshot.hasError
-                  ? 'Reminders unavailable — tap to retry'
-                  : !ready
-                  ? 'Loading vaccination reminders'
-                  : 'Vaccination reminders ($unread unread)',
-              onPressed: snapshot.hasError ? _reload : _openReminders,
-              icon: Badge(
-                isLabelVisible: ready && unread > 0,
-                label: Text(unread > 99 ? '99+' : '$unread'),
-                child: const Icon(Icons.notifications_outlined),
-              ),
-            );
-          },
-        ),
+        if (widget.showNotifications)
+          FutureBuilder<List<VaccinationReminder>>(
+            future: _reminderRows,
+            builder: (context, snapshot) {
+              final ready =
+                  snapshot.connectionState == ConnectionState.done &&
+                  !snapshot.hasError;
+              final unread = (snapshot.data ?? const <VaccinationReminder>[])
+                  .where((reminder) => reminder.hasUnreadNotification)
+                  .length;
+              return IconButton(
+                tooltip: snapshot.hasError
+                    ? 'Reminders unavailable — tap to retry'
+                    : !ready
+                    ? 'Loading vaccination reminders'
+                    : 'Vaccination reminders ($unread unread)',
+                onPressed: snapshot.hasError ? _reload : _openReminders,
+                icon: Badge(
+                  isLabelVisible: ready && unread > 0,
+                  label: Text(unread > 99 ? '99+' : '$unread'),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+              );
+            },
+          ),
         PopupMenuButton<String>(
           tooltip: 'Menu',
           icon: const Icon(Icons.menu_rounded),

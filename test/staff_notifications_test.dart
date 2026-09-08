@@ -73,6 +73,44 @@ class _Repository implements StaffNotificationRepository {
 }
 
 void main() {
+  testWidgets('Total and Unread cards control the notification filter', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StaffNotificationsScreen(
+          repository: repository,
+          user: const AppUser(
+            id: 'worker',
+            fullName: 'Nurse',
+            role: UserRole.healthWorker,
+            active: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Unread'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Unread (1)'))
+          .selected,
+      isTrue,
+    );
+
+    await tester.tap(find.text('Total'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'All'))
+          .selected,
+      isTrue,
+    );
+  });
+
   testWidgets(
     'Request notification opens request directly without extra details page',
     (tester) async {

@@ -5,6 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../repositories/qr_repository.dart';
 import '../repositories/live_qr_repository.dart';
+import '../widgets/worker_app_bar_actions.dart';
 import 'qr_scan_result_screen.dart';
 
 class QrScanScreen extends StatefulWidget {
@@ -261,6 +262,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
           'Scan Child QR',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: const [WorkerAppBarActions()],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
