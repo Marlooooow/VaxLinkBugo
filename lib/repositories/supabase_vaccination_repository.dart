@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/child_profile.dart';
 import '../models/first_visit_review.dart';
 import '../models/pnip_schedule_entry.dart';
+import '../models/pnip_schedule_rule.dart';
 import '../models/vaccination_assessment.dart';
 import '../models/vaccination_record.dart';
 import '../models/vaccination_screening.dart';
@@ -31,19 +32,29 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
   @override
   Future<List<PnipScheduleEntry>> getVaccinationSchedule(
     ChildProfile child,
-  ) async => const PnipScheduleService().calculate(
-    child: child,
-    history: await getVaccinationHistory(child.id),
-  );
+  ) async {
+    final results = await Future.wait([
+      getVaccinationHistory(child.id),
+      _getActiveScheduleRules(),
+    ]);
+    return const PnipScheduleService().calculateFromRules(
+      child: child,
+      history: results[0] as List<VaccinationRecord>,
+      rules: results[1] as List<PnipScheduleRule>,
+    );
+  }
 
   @override
   Future<VaccinationAssessment> assessChild(ChildProfile child) async {
-    final history = await getVaccinationHistory(child.id);
-    // The existing deterministic schedule is shared, not a source of mock history.
-    // Clinical writes remain blocked until the server enforces eligibility too.
-    final schedule = const PnipScheduleService().calculate(
+    final results = await Future.wait([
+      getVaccinationHistory(child.id),
+      _getActiveScheduleRules(),
+    ]);
+    final history = results[0] as List<VaccinationRecord>;
+    final schedule = const PnipScheduleService().calculateFromRules(
       child: child,
       history: history,
+      rules: results[1] as List<PnipScheduleRule>,
     );
     final due = schedule.where((dose) => dose.requiresAction).toList();
     return VaccinationAssessment(
@@ -60,6 +71,51 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
           'Schedule calculated from the saved birth date and vaccination history. '
           'Health-worker assessment is required before administration.',
     );
+  }
+
+  Future<List<PnipScheduleRule>> _getActiveScheduleRules() async {
+    final today = DateTime.now().toIso8601String().split('T').first;
+    final rows = await _client
+        .from('pnip_schedule_rules')
+        .select(
+          'vaccine_id, dose_number, recommended_age_days, '
+          'minimum_interval_days, effective_from, vaccine_definitions(name)',
+        )
+        .eq('active', true)
+        .lte('effective_from', today)
+        .or('effective_to.is.null,effective_to.gte.$today')
+        .order('effective_from', ascending: false);
+
+    final current = <String, PnipScheduleRule>{};
+    for (final raw in rows as List) {
+      final row = Map<String, dynamic>.from(raw as Map);
+      final rule = PnipScheduleRule.fromRow(row);
+      current.putIfAbsent('${rule.vaccineId}:${rule.doseNumber}', () => rule);
+    }
+    if (current.isEmpty) {
+      throw StateError(
+        'No active PNIP schedule rules are available. Apply the PNIP schedule migration.',
+      );
+    }
+    final rules = current.values.toList()
+      ..sort((a, b) {
+        final age = a.recommendedAgeDays.compareTo(b.recommendedAgeDays);
+        if (age != 0) return age;
+        const order = {
+          'bcg': 0,
+          'hepatitis_b': 1,
+          'pentavalent': 2,
+          'opv': 3,
+          'pcv': 4,
+          'ipv': 5,
+          'mmr': 6,
+        };
+        final vaccine = (order[a.vaccineId] ?? 99).compareTo(
+          order[b.vaccineId] ?? 99,
+        );
+        return vaccine != 0 ? vaccine : a.doseNumber.compareTo(b.doseNumber);
+      });
+    return rules;
   }
 
   @override
@@ -118,23 +174,26 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
         .map((row) => recordFromRow(Map<String, dynamic>.from(row as Map)))
         .toList(growable: false);
   }
+
   @override
   Future<VaccinationRecord> updateVaccinationRecord(
     VaccinationRecord record,
   ) async {
-    final id = await _client.rpc(
-      'correct_live_vaccination_record',
-      params: {
-        'target_record_id': record.id,
-        'target_administered_on': record.dateAdministered
-            .toIso8601String()
-            .split('T')
-            .first,
-        'target_facility': record.administeringFacility,
-        'target_worker': record.healthWorkerName,
-        'target_notes': record.notes,
-      },
-    ) as String;
+    final id =
+        await _client.rpc(
+              'correct_live_vaccination_record',
+              params: {
+                'target_record_id': record.id,
+                'target_administered_on': record.dateAdministered
+                    .toIso8601String()
+                    .split('T')
+                    .first,
+                'target_facility': record.administeringFacility,
+                'target_worker': record.healthWorkerName,
+                'target_notes': record.notes,
+              },
+            )
+            as String;
     final row = await _client
         .from('vaccination_records')
         .select(_select)
@@ -142,6 +201,7 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
         .single();
     return recordFromRow(row);
   }
+
   @override
   Future<VaccinationScreening> recordScreening(
     VaccinationScreening screening,
@@ -168,12 +228,15 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
       currentConditionAssessed: row['current_condition_assessed'] as bool,
       contraindicationsReviewed: row['contraindications_reviewed'] as bool,
       guardianConsentConfirmed: row['guardian_consent_confirmed'] as bool,
-      outcome: VaccinationScreeningOutcome.values.byName(row['outcome'] as String),
+      outcome: VaccinationScreeningOutcome.values.byName(
+        row['outcome'] as String,
+      ),
       notes: row['notes'] as String? ?? '',
       screenedAt: DateTime.parse(row['screened_at'] as String),
       screenedByUserId: row['screened_by'] as String,
     );
   }
+
   @override
   Future<FirstVisitReview> recordFirstVisitReview(
     FirstVisitReview review,
@@ -253,17 +316,16 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
     );
   }
 
-  static FirstVisitReview _firstVisitReviewFromRow(
-    Map<String, dynamic> row,
-  ) => FirstVisitReview(
-      id: row['id'] as String,
-      reviewCode: row['review_code'] as String,
-      childId: row['child_id'] as String,
-      hasDocumentedPreviousVaccinations:
-          row['has_documented_previous_vaccinations'] as bool,
-      reviewedAt: DateTime.parse(row['reviewed_at'] as String),
-      reviewedByUserId: row['reviewed_by'] as String,
-    );
+  static FirstVisitReview _firstVisitReviewFromRow(Map<String, dynamic> row) =>
+      FirstVisitReview(
+        id: row['id'] as String,
+        reviewCode: row['review_code'] as String,
+        childId: row['child_id'] as String,
+        hasDocumentedPreviousVaccinations:
+            row['has_documented_previous_vaccinations'] as bool,
+        reviewedAt: DateTime.parse(row['reviewed_at'] as String),
+        reviewedByUserId: row['reviewed_by'] as String,
+      );
 
   static String _source(VaccinationSource source) => switch (source) {
     VaccinationSource.bugo => 'local',

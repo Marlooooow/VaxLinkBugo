@@ -39,9 +39,7 @@ class SupabaseAuthRepository implements AuthRepository {
   }) async {
     final result = await _client.functions.invoke(
       'activate-guardian-access',
-      body: {
-        'activation_code': activationCode.trim().toUpperCase(),
-      },
+      body: {'activation_code': activationCode.trim().toUpperCase()},
     );
     if (result.status < 200 ||
         result.status >= 300 ||
@@ -68,9 +66,59 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> changePassword(String newPassword) async {
+  Future<StaffActivationResult> activateStaffInvitation({
+    required String activationCode,
+  }) async {
+    final result = await _client.functions.invoke(
+      'activate-staff-access',
+      body: {'activation_code': activationCode.trim().toUpperCase()},
+    );
+    if (result.status < 200 || result.status >= 300 || result.data is! Map) {
+      final data = result.data;
+      final message = data is Map && data['error'] is String
+          ? data['error'] as String
+          : 'Staff access could not be activated.';
+      throw StateError(message);
+    }
+    final data = result.data as Map;
+    if (data['activated'] != true) {
+      throw StateError('Staff access could not be activated.');
+    }
+    final username = data['username'];
+    final temporaryPassword = data['temporary_password'];
+    if (username is! String ||
+        username.isEmpty ||
+        temporaryPassword is! String ||
+        temporaryPassword.isEmpty) {
+      throw StateError('Activation completed without login credentials.');
+    }
+    return StaffActivationResult(
+      username: username,
+      temporaryPassword: temporaryPassword,
+    );
+  }
+
+  @override
+  Future<void> changePassword(
+    String newPassword, {
+    String? currentPassword,
+  }) async {
     if (newPassword.length < 8) {
       throw ArgumentError('Password must contain at least 8 characters.');
+    }
+    if (currentPassword != null) {
+      final email = _client.auth.currentUser?.email;
+      if (email == null || currentPassword.isEmpty) {
+        throw StateError('Enter your current password.');
+      }
+      try {
+        await _client.auth.signInWithPassword(
+          email: email,
+          password: currentPassword,
+        );
+      } on AuthException {
+        throw StateError('The current password is incorrect.');
+      }
     }
     final result = await _client.auth.updateUser(
       UserAttributes(password: newPassword),

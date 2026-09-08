@@ -1,5 +1,5 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { maskMobile, normalizePhilippineMobile, providerResult, reminderMessage } from './sms_utils.ts'
+import { groupedReminderMessage, maskMobile, normalizePhilippineMobile, providerResult } from './sms_utils.ts'
 
 const headers = {
   'Content-Type': 'application/json',
@@ -71,7 +71,8 @@ Deno.serve(async (request) => {
     reminder: Record<string, unknown>
     phone: string
     masked: string
-    message: string
+    childName: string
+    vaccineName: string
   }> = []
   for (const raw of reminders) {
     const reminder = raw as Record<string, unknown>
@@ -99,12 +100,8 @@ Deno.serve(async (request) => {
       reminder,
       phone,
       masked: maskMobile(phone),
-      message: reminderMessage({
-        childName: String(child.full_name),
-        vaccineName: String(vaccine.name),
-        doseNumber: Number(reminder.dose_number),
-        dueOn: String(reminder.due_on),
-      }),
+      childName: String(child.full_name),
+      vaccineName: String(vaccine.name),
     })
   }
 
@@ -117,26 +114,45 @@ Deno.serve(async (request) => {
     return json({ error: 'A selected reminder was already sent or started within the last 10 minutes.' }, 409)
   }
 
+  const groupedTargets = new Map<string, typeof targets>()
+  for (const target of targets) {
+    const key = `${target.reminder.guardian_id}:${target.reminder.child_id}`
+    const group = groupedTargets.get(key) ?? []
+    group.push(target)
+    groupedTargets.set(key, group)
+  }
+
   const requestId = crypto.randomUUID()
   const followUps: Record<string, unknown>[] = []
   let accepted = 0
   let failed = 0
-  for (const target of targets) {
-    const reminder = target.reminder
-    const suffix = crypto.randomUUID().replaceAll('-', '').substring(0, 12).toUpperCase()
-    const { data: delivery, error: deliveryError } = await admin.from('reminder_sms_deliveries').insert({
-      delivery_code: `SMS-${Date.now()}-${suffix}`,
+  let messagesSent = 0
+  for (const group of groupedTargets.values()) {
+    const first = group[0]
+    const message = groupedReminderMessage({
+      childName: first.childName,
+      reminders: group.map((target) => ({
+        vaccineName: target.vaccineName,
+        doseNumber: Number(target.reminder.dose_number),
+        dueOn: String(target.reminder.due_on),
+        status: String(target.reminder.status),
+      })),
+    })
+    const deliveryRows = group.map((target, index) => ({
+      delivery_code: `SMS-${Date.now()}-${crypto.randomUUID().replaceAll('-', '').substring(0, 12).toUpperCase()}-${index + 1}`,
       facility_id: actor.facility_id,
-      reminder_id: reminder.id,
-      guardian_id: reminder.guardian_id,
-      child_id: reminder.child_id,
+      reminder_id: target.reminder.id,
+      guardian_id: target.reminder.guardian_id,
+      child_id: target.reminder.child_id,
       requested_by: actor.id,
       recipient_masked: target.masked,
       status: 'sending',
       request_id: requestId,
-    }).select('id').single()
-    if (deliveryError || !delivery) {
-      failed++
+    }))
+    const { data: deliveries, error: deliveryError } = await admin
+      .from('reminder_sms_deliveries').insert(deliveryRows).select('id, reminder_id')
+    if (deliveryError || !deliveries || deliveries.length !== group.length) {
+      failed += group.length
       continue
     }
 
@@ -150,8 +166,8 @@ Deno.serve(async (request) => {
     try {
       const form = new URLSearchParams({
         apikey: semaphoreKey,
-        number: target.phone,
-        message: target.message,
+        number: first.phone,
+        message,
       })
       if (senderName) form.set('sendername', senderName)
       const response = await fetch('https://api.semaphore.co/api/v4/messages', {
@@ -174,7 +190,7 @@ Deno.serve(async (request) => {
       provider_status: result.providerStatus,
       failure_code: result.failureCode,
       status: deliveryStatus,
-    }).eq('id', delivery.id)
+    }).in('id', deliveries.map((delivery) => delivery.id))
 
     const outcome = result.accepted ? 'provider_accepted' : 'delivery_failed'
     const notes = result.accepted
@@ -182,27 +198,36 @@ Deno.serve(async (request) => {
       : deliveryStatus === 'uncertain'
       ? 'SMS provider response was uncertain. Verify Semaphore history before retrying.'
       : 'Semaphore rejected the SMS request. Review provider status and contact information.'
-    const { data: followUp } = await admin.from('reminder_follow_ups').insert({
-      follow_up_code: `FUP-SMS-${Date.now()}-${suffix}`,
-      reminder_id: reminder.id,
-      child_id: reminder.child_id,
+    const followUpRows = group.map((target) => ({
+      follow_up_code: `FUP-SMS-${Date.now()}-${crypto.randomUUID().replaceAll('-', '').substring(0, 12).toUpperCase()}`,
+      reminder_id: target.reminder.id,
+      child_id: target.reminder.child_id,
       action: 'sms',
       outcome,
       notes,
       performed_by: actor.id,
-    }).select().single()
-    if (followUp) followUps.push(followUp)
+    }))
+    const { data: savedFollowUps } = await admin
+      .from('reminder_follow_ups').insert(followUpRows).select()
+    if (savedFollowUps) followUps.push(...savedFollowUps)
     if (result.accepted) {
-      accepted++
+      accepted += group.length
+      messagesSent++
       await admin.from('reminders').update({
         last_contacted_at: new Date().toISOString(),
         delivery_channel: 'sms',
         updated_at: new Date().toISOString(),
-      }).eq('id', reminder.id)
+      }).in('id', group.map((target) => target.reminder.id))
     } else {
-      failed++
+      failed += group.length
     }
   }
 
-  return json({ requested: targets.length, accepted, failed, follow_ups: followUps })
+  return json({
+    requested: targets.length,
+    accepted,
+    failed,
+    messages_sent: messagesSent,
+    follow_ups: followUps,
+  })
 })

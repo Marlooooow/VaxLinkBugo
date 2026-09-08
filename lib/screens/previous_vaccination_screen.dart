@@ -90,11 +90,13 @@ class _PreviousVaccinationScreenState extends State<PreviousVaccinationScreen> {
     }
     setState(() => _saving = true);
     try {
-      final identity = MockIdentifierGenerator.next(prefix: 'VAX');
+      final identity = RepositoryRegistry.instance.environment.isLive
+          ? null
+          : MockIdentifierGenerator.next(prefix: 'VAX');
       await _repository.recordVaccinations([
         VaccinationRecord(
-          id: identity.id,
-          recordCode: identity.code,
+          id: identity?.id ?? '',
+          recordCode: identity?.code ?? '',
           childId: widget.child.id,
           vaccineId: dose.vaccineId,
           vaccineName: dose.vaccineName,

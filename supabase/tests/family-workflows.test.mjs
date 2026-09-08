@@ -35,12 +35,39 @@ test('live family transactions, invitations, corrections and access isolation', 
       grant usage on schema auth, public to anon, authenticated, service_role;
       grant execute on function auth.uid() to anon, authenticated, service_role;
     `);
-    for (const name of ['202608300001_initial_schema.sql', '202608310001_live_family_workflows.sql', '202608310002_family_access_and_corrections.sql', '202609010001_authenticated_app_permissions.sql', '202609010002_structured_names_and_staff.sql', '202609020001_guardian_activation_service_access.sql', '202609020002_reminder_sms_delivery.sql', '202609020003_child_reminder_synchronization.sql']) {
+    for (const name of ['202608300001_initial_schema.sql', '202608310001_live_family_workflows.sql', '202608310002_family_access_and_corrections.sql', '202609010001_authenticated_app_permissions.sql', '202609010002_structured_names_and_staff.sql', '202609020001_guardian_activation_service_access.sql', '202609020002_reminder_sms_delivery.sql', '202609020003_child_reminder_synchronization.sql', '202609030001_inventory_adjustment_permissions.sql', '202609070002_fix_receive_stock_schema_mismatch.sql', '202609070003_account_profile_management.sql']) {
       await db.exec(await readFile(new URL(`../migrations/${name}`, import.meta.url), 'utf8'));
     }
     await db.query('insert into auth.users(id) values ($1),($2),($3)', [staff, otherStaff, guardianUser]);
     await db.query("insert into public.facilities(id,facility_code,name,barangay,city) values ($1,'TEST-A','Test facility A','Test','Test'),($2,'TEST-B','Test facility B','Test','Test')", [facility, otherFacility]);
     await db.query("insert into public.profiles(id,facility_id,username,full_name,role) values ($1,$3,'test.staff.a','Test Staff A','administrator'),($2,$4,'test.staff.b','Test Staff B','health_worker')", [staff,otherStaff,facility,otherFacility]);
+    await db.exec(`insert into public.vaccine_definitions(id,vaccine_code,name,disease_prevented) values
+      ('bcg','BCG','BCG','Tuberculosis'),
+      ('hepatitis_b','HEPB','Hepatitis B','Hepatitis B'),
+      ('pentavalent','PENTA','Pentavalent','Multiple diseases'),
+      ('opv','OPV','OPV','Polio'),
+      ('pcv','PCV','PCV','Pneumococcal disease'),
+      ('ipv','IPV','IPV','Polio'),
+      ('mmr','MMR','MMR','Measles, mumps and rubella');`);
+    await t.test('receiving stock links a batch through inventory_id', async () => {
+      const inventoryId = '30000000-0000-4000-8000-000000000001';
+      await db.query(
+        "insert into public.vaccine_inventory(id,facility_id,vaccine_id,reorder_level) values ($1,$2,'bcg',5)",
+        [inventoryId, facility],
+      );
+      const transaction = (await asUser(staff, tx => tx.query(
+        "select * from public.receive_vaccine_stock($1,'LOT-TEST','Test supplier',(current_date+interval '1 year')::date,10,'DELIVERY-TEST',true,true,'acceptable','Verified')",
+        [inventoryId],
+      ))).rows[0];
+      assert.equal(transaction.inventory_id, inventoryId);
+      assert.equal(transaction.quantity_delta, 10);
+      const batch = (await db.query(
+        'select inventory_id, quantity from public.vaccine_batches where id=$1',
+        [transaction.batch_id],
+      )).rows[0];
+      assert.equal(batch.inventory_id, inventoryId);
+      assert.equal(batch.quantity, 10);
+    });
     await t.test('authenticated app permissions reach RLS without opening audited tables', async () => {
       const privileges = (await db.query(`select
         has_table_privilege('authenticated','public.profiles','select') as profile_read,
@@ -87,6 +114,12 @@ test('live family transactions, invitations, corrections and access isolation', 
       assert.equal((await db.query("select count(*)::int as n from audit_logs where action='staff_invited' and entity_id=$1",[result.staff.id])).rows[0].n,1);
       assert.equal((await asUser(otherStaff,tx => tx.query('select id from staff_members'))).rows.length,0);
       assert.equal((await db.query("select has_function_privilege('authenticated','public.activate_staff_profile(uuid,uuid,text)','execute') as allowed")).rows[0].allowed,false);
+      const disabled = (await asUser(staff, tx => tx.query(
+        'select public.set_staff_member_status($1,$2) as staff',
+        [result.staff.id, 'disabled'],
+      ))).rows[0].staff;
+      assert.equal(disabled.status, 'disabled');
+      assert.equal((await db.query("select count(*)::int as n from audit_logs where action='staff_status_updated' and entity_id=$1", [result.staff.id])).rows[0].n, 1);
     });
     await t.test('one registration commits two children and an invitation without creating a login', async () => {
       family = (await asUser(staff, tx => register(tx,[child('Test Child One'),child('Test Child Two')],true))).rows[0].family;
@@ -150,6 +183,23 @@ test('live family transactions, invitations, corrections and access isolation', 
       await assert.rejects(asUser(staff,tx => tx.query('select review_family_child_request($1,false,$2)',[rejectedId,''])),/reason/);
       await asUser(staff,tx => tx.query('select review_family_child_request($1,false,$2)',[rejectedId,'Unable to verify']));
       assert.equal((await db.query("select count(*)::int as n from children where full_name='Rejected Child'")).rows[0].n,0);
+    });
+    await t.test('guardians can update only their own contact details with an audit entry', async () => {
+      const updated = (await asUser(guardianUser, tx => tx.query(
+        'select public.update_my_profile_contact($1::jsonb) as guardian',
+        [{phone:'09123456789',email:'guardian@example.com',address:'Updated home'}],
+      ))).rows[0].guardian;
+      assert.equal(updated.phone, '09123456789');
+      assert.equal(updated.email, 'guardian@example.com');
+      assert.equal(updated.address, 'Updated home');
+      assert.equal((await db.query("select count(*)::int as n from audit_logs where action='guardian_contact_updated' and entity_id=$1", [family.id])).rows[0].n, 1);
+      await assert.rejects(
+        asUser(guardianUser, tx => tx.query(
+          'select public.update_my_profile_contact($1::jsonb)',
+          [{phone:'invalid',email:null,address:'Updated home'}],
+        )),
+        /valid Philippine mobile number/,
+      );
     });
     await t.test('corrections preserve actor, previous values, login status and primary link', async () => {
       const result = (await asUser(staff,tx => tx.query('select correct_guardian_details($1,$2,$3) as result',[

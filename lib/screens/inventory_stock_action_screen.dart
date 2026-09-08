@@ -10,6 +10,27 @@ import '../utils/number_formatter.dart';
 
 enum InventoryStockAction { receive, adjust, wastage }
 
+class InventoryStockActionResult {
+  final InventoryTransaction transaction;
+  final int usableQuantityDelta;
+  final VaccineInventory? refreshedInventory;
+  final List<VaccineBatch>? refreshedBatches;
+  final List<InventoryTransaction>? refreshedTransactions;
+
+  const InventoryStockActionResult({
+    required this.transaction,
+    required this.usableQuantityDelta,
+    this.refreshedInventory,
+    this.refreshedBatches,
+    this.refreshedTransactions,
+  });
+
+  bool get hasRefreshedSnapshot =>
+      refreshedInventory != null &&
+      refreshedBatches != null &&
+      refreshedTransactions != null;
+}
+
 class InventoryStockActionScreen extends StatefulWidget {
   final InventoryStockAction action;
   final VaccineInventory inventory;
@@ -232,7 +253,47 @@ class _InventoryStockActionScreenState
           );
       }
       if (!mounted) return;
-      Navigator.pop(context, transaction);
+      final usableQuantityDelta = switch (widget.action) {
+        InventoryStockAction.receive =>
+          _packagingIntact &&
+                  _coldChainVerified &&
+                  (_vvmStatus == VaccineVvmStatus.acceptable ||
+                      _vvmStatus == VaccineVvmStatus.notApplicable)
+              ? quantity
+              : 0,
+        InventoryStockAction.adjust ||
+        InventoryStockAction.wastage => transaction.quantityChange,
+      };
+
+      // The write has committed. Read the complete current inventory before
+      // returning so the destination screen never reuses its old snapshot.
+      VaccineInventory? refreshedInventory;
+      List<VaccineBatch>? refreshedBatches;
+      List<InventoryTransaction>? refreshedTransactions;
+      try {
+        final refreshed = await Future.wait([
+          widget.repository.getVaccineInventory(widget.inventory.vaccineId),
+          widget.repository.getBatches(widget.inventory.vaccineId),
+          widget.repository.getTransactions(widget.inventory.vaccineId),
+        ]);
+        refreshedInventory = refreshed[0] as VaccineInventory?;
+        refreshedBatches = refreshed[1] as List<VaccineBatch>;
+        refreshedTransactions = refreshed[2] as List<InventoryTransaction>;
+      } catch (_) {
+        // The stock write is already committed. Return it instead of leaving
+        // the form open and risking a duplicate submission.
+      }
+      if (!mounted) return;
+      Navigator.pop(
+        context,
+        InventoryStockActionResult(
+          transaction: transaction,
+          usableQuantityDelta: usableQuantityDelta,
+          refreshedInventory: refreshedInventory,
+          refreshedBatches: refreshedBatches,
+          refreshedTransactions: refreshedTransactions,
+        ),
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);

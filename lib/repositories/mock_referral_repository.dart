@@ -1,7 +1,7 @@
-import '../models/child_profile.dart';
-import '../models/external_vaccination_correction.dart';
-import '../models/external_vaccination_record.dart';
-import '../models/external_vaccination_visit.dart';
+import '../models/child/child_profile.dart';
+import '../models/external_vaccination/external_vaccination_correction.dart';
+import '../models/external_vaccination/external_vaccination_record.dart';
+import '../models/external_vaccination/external_vaccination_visit.dart';
 import '../models/referral.dart';
 import '../models/referral_group.dart';
 import '../models/referral_verification_result.dart';
@@ -384,6 +384,54 @@ class MockReferralRepository implements ReferralRepository {
     if (offset >= groups.length) return [];
     final end = (offset + limit).clamp(0, groups.length);
     return List.unmodifiable(groups.sublist(offset, end));
+  }
+
+  @override
+  Future<ReferralGroupPage> getReferralGroupsPage({
+    String query = '',
+    ReferralGroupStatus? status,
+    bool overdueOnly = false,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final allMatching = await getReferralGroups(
+      query: query,
+      status: status,
+      overdueOnly: overdueOnly,
+      limit: _groups.length,
+    );
+    final safeOffset = offset < 0 ? 0 : offset;
+    final safeLimit = limit < 1 ? 1 : limit;
+    final end = (safeOffset + safeLimit).clamp(0, allMatching.length);
+    final items = safeOffset >= allMatching.length
+        ? const <ReferralGroup>[]
+        : List<ReferralGroup>.unmodifiable(
+            allMatching.sublist(safeOffset, end),
+          );
+    final allGroups = _groups.values.toList(growable: false);
+
+    return ReferralGroupPage(
+      items: items,
+      totalCount: allMatching.length,
+      hasMore: safeOffset + items.length < allMatching.length,
+      nextOffset: safeOffset + items.length,
+      summary: ReferralGroupSummaryCounts(
+        pending: allGroups
+            .where((group) => group.status == ReferralGroupStatus.pending)
+            .length,
+        partiallyCompleted: allGroups
+            .where(
+              (group) => group.status == ReferralGroupStatus.partiallyCompleted,
+            )
+            .length,
+        completed: allGroups
+            .where((group) => group.status == ReferralGroupStatus.completed)
+            .length,
+        overdue: allGroups
+            .where((group) => group.isOverdueOn(DateTime.now()))
+            .length,
+      ),
+    );
   }
 
   @override

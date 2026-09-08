@@ -1,4 +1,4 @@
-import 'child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child_profile.dart';
 
 class QrScanResult {
   final String qrIdentifier;

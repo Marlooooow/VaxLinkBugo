@@ -1,9 +1,10 @@
 import '../models/app_user.dart';
 import 'auth_repository.dart';
+import 'demo_repository.dart';
 import 'mock_child_repository.dart';
 import '../services/mock_identifier_generator.dart';
 
-class MockAuthRepository implements AuthRepository {
+class MockAuthRepository implements AuthRepository, DemoRepository {
   AppUser? _currentUser;
 
   static const List<_MockAccount> _prototypeAccounts = [
@@ -141,7 +142,17 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> changePassword(String newPassword) async {}
+  Future<StaffActivationResult> activateStaffInvitation({
+    required String activationCode,
+  }) async {
+    throw StateError('Staff activation is available only in live mode.');
+  }
+
+  @override
+  Future<void> changePassword(
+    String newPassword, {
+    String? currentPassword,
+  }) async {}
 
   @override
   Future<bool> requestGuardianPasswordReset(String username) async => _accounts

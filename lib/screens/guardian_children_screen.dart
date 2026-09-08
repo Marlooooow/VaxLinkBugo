@@ -477,7 +477,9 @@ class _ChildCardState extends State<_ChildCard> {
           padding: const EdgeInsets.all(17),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE7EDF4)),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -607,7 +609,9 @@ class _LoadingCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE7EDF4)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant,
+        ),
       ),
       child: const AppLoadingView(
         title: 'Loading child records',
@@ -629,7 +633,9 @@ class _EmptyCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE7EDF4)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant,
+        ),
       ),
       child: const Column(
         children: [

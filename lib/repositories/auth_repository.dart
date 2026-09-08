@@ -12,6 +12,16 @@ class GuardianActivationResult {
   });
 }
 
+class StaffActivationResult {
+  final String username;
+  final String temporaryPassword;
+
+  const StaffActivationResult({
+    required this.username,
+    required this.temporaryPassword,
+  });
+}
+
 abstract class AuthRepository {
   Future<AppUser?> login({required String username, required String password});
 
@@ -22,7 +32,11 @@ abstract class AuthRepository {
     required String activationCode,
   });
 
-  Future<void> changePassword(String newPassword);
+  Future<StaffActivationResult> activateStaffInvitation({
+    required String activationCode,
+  });
+
+  Future<void> changePassword(String newPassword, {String? currentPassword});
 
   Future<bool> requestGuardianPasswordReset(String username);
 }

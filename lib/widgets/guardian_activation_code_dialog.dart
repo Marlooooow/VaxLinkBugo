@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../models/guardian_invitation.dart';
+import '../models/guardian/guardian_invitation.dart';
 
 Future<void> showGuardianActivationCodeDialog(
   BuildContext context,

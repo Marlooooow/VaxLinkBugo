@@ -1,13 +1,15 @@
-import '../models/advisory_insight.dart';
-import '../models/vaccination_appointment.dart';
-import '../models/vaccination_reminder.dart';
-import '../services/mock_scenario_clock.dart';
-import 'advisory_insight_repository.dart';
-import 'mock_appointment_repository.dart';
-import 'mock_inventory_repository.dart';
-import 'mock_reminder_repository.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/advisory_insight.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/vaccination_appointment.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/vaccination_reminder.dart';
+import 'package:qr_code_based_pediatric_vaccination/services/mock_scenario_clock.dart';
+import 'package:qr_code_based_pediatric_vaccination/repositories/mock_appointment_repository.dart';
+import 'package:qr_code_based_pediatric_vaccination/repositories/mock_inventory_repository.dart';
+import 'package:qr_code_based_pediatric_vaccination/repositories/mock_reminder_repository.dart';
 
-class MockAdvisoryInsightRepository implements AdvisoryInsightRepository {
+import 'advisory_insight_repository.dart';
+
+class MockAdvisoryInsightRepository
+    implements AdvisoryInsightRepository, AdvisoryInsightGenerator {
   static final Map<String, AdvisoryInsight> _saved = {};
 
   @override
@@ -159,6 +161,47 @@ class MockAdvisoryInsightRepository implements AdvisoryInsightRepository {
     }
     return List.unmodifiable(insights);
   }
+
+  @override
+  Future<AdvisoryInsightPage> getFacilityInsightsPage({
+    AdvisoryInsightSeverity? severity,
+    AdvisoryInsightStatus? status,
+    String? insightId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final all = await getFacilityInsights();
+    final filtered = all
+        .where((item) {
+          if (insightId != null) return item.id == insightId;
+          if (status != null && item.status != status) return false;
+          return severity == null || item.severity == severity;
+        })
+        .toList(growable: false);
+    final safeOffset = offset.clamp(0, filtered.length).toInt();
+    final end = (safeOffset + limit).clamp(safeOffset, filtered.length).toInt();
+    return AdvisoryInsightPage(
+      items: filtered.sublist(safeOffset, end),
+      summary: AdvisoryInsightSummary(
+        high: all
+            .where((item) => item.severity == AdvisoryInsightSeverity.high)
+            .length,
+        medium: all
+            .where((item) => item.severity == AdvisoryInsightSeverity.medium)
+            .length,
+        newCount: all
+            .where((item) => item.status == AdvisoryInsightStatus.newInsight)
+            .length,
+      ),
+      totalCount: filtered.length,
+      hasMore: end < filtered.length,
+      nextOffset: end,
+    );
+  }
+
+  @override
+  Future<int> generateFacilityInsights() async =>
+      (await getFacilityInsights()).length;
 
   AdvisoryInsight _withSavedStatus(AdvisoryInsight generated) {
     final saved = _saved[generated.id];

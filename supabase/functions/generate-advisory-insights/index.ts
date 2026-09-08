@@ -31,10 +31,14 @@ Deno.serve(async (request) => {
   }
 
   const [reminders, appointments, inventory] = await Promise.all([
-    admin.from('reminders').select('status, vaccine_id').in('status', ['due_today', 'overdue', 'upcoming']),
+    admin.from('reminders')
+      .select('status, vaccine_id, children!inner(facility_id)')
+      .eq('children.facility_id', profile.facility_id)
+      .in('status', ['due_today', 'overdue', 'upcoming']),
     admin.from('appointments').select('status, vaccine_id').eq('facility_id', profile.facility_id),
     admin.from('vaccine_inventory').select(
-      'vaccine_id, reorder_level, vaccine_definitions(name), vaccine_batches(quantity, safety_status, expiry_date)',
+      'vaccine_id, reorder_level, vaccine_definitions(name), '
+      + 'vaccine_batches(quantity, safety_status, expiry_date, packaging_intact, cold_chain_verified, vvm_status)',
     ).eq('facility_id', profile.facility_id),
   ])
   if (reminders.error || appointments.error || inventory.error) {
@@ -43,13 +47,19 @@ Deno.serve(async (request) => {
 
   const reminderCounts = countBy(reminders.data ?? [], 'status')
   const waitlisted = (appointments.data ?? []).filter((item) => item.status === 'waitlisted').length
+  const today = new Date().toISOString().slice(0, 10)
   const stock = (inventory.data ?? []).map((item) => ({
     vaccine_id: item.vaccine_id,
     vaccine_name: Array.isArray(item.vaccine_definitions)
       ? item.vaccine_definitions[0]?.name
       : item.vaccine_definitions?.name,
     usable_doses: (item.vaccine_batches ?? [])
-      .filter((batch: Record<string, unknown>) => batch.safety_status === 'usable')
+      .filter((batch: Record<string, unknown>) =>
+        batch.safety_status === 'usable' &&
+        batch.packaging_intact === true &&
+        batch.cold_chain_verified === true &&
+        ['acceptable', 'not_applicable'].includes(String(batch.vvm_status ?? '')) &&
+        String(batch.expiry_date ?? '') >= today)
       .reduce((sum: number, batch: Record<string, unknown>) => sum + Number(batch.quantity ?? 0), 0),
     reorder_level: item.reorder_level,
   }))

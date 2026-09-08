@@ -5,24 +5,57 @@ class ReminderSummary {
   final int dueToday;
   final int overdue;
   final int upcoming;
+  final List<String> guardianIds;
+  final List<ReminderVaccineCount> vaccineCounts;
 
   const ReminderSummary({
     required this.dueToday,
     required this.overdue,
     required this.upcoming,
+    this.guardianIds = const [],
+    this.vaccineCounts = const [],
   });
 
   factory ReminderSummary.fromItems(Iterable<VaccinationReminder> items) {
+    final rows = items.toList(growable: false);
+    final grouped = <String, ReminderVaccineCount>{};
+    for (final item in rows.where(
+      (item) =>
+          item.status == VaccinationReminderStatus.dueToday ||
+          item.status == VaccinationReminderStatus.overdue,
+    )) {
+      final current = grouped[item.vaccineId];
+      grouped[item.vaccineId] = ReminderVaccineCount(
+        vaccineId: item.vaccineId,
+        vaccineName: item.vaccineName,
+        dueToday:
+            (current?.dueToday ?? 0) +
+            (item.status == VaccinationReminderStatus.dueToday ? 1 : 0),
+        overdue:
+            (current?.overdue ?? 0) +
+            (item.status == VaccinationReminderStatus.overdue ? 1 : 0),
+      );
+    }
     return ReminderSummary(
-      dueToday: items
+      dueToday: rows
           .where((item) => item.status == VaccinationReminderStatus.dueToday)
           .length,
-      overdue: items
+      overdue: rows
           .where((item) => item.status == VaccinationReminderStatus.overdue)
           .length,
-      upcoming: items
+      upcoming: rows
           .where((item) => item.status == VaccinationReminderStatus.upcoming)
           .length,
+      guardianIds: rows
+          .where(
+            (item) =>
+                item.status == VaccinationReminderStatus.dueToday ||
+                item.status == VaccinationReminderStatus.overdue,
+          )
+          .map((item) => item.guardianId)
+          .toSet()
+          .toList(growable: false),
+      vaccineCounts: grouped.values.toList(growable: false),
     );
   }
 }

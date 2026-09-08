@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../screens/login_screen.dart';
+import '../screens/account_profile_screen.dart';
 import '../screens/staff_notifications_screen.dart';
 import '../services/session_context.dart';
 import '../theme/theme_controller.dart';
@@ -32,6 +33,20 @@ class WorkerAppBarActions extends StatelessWidget {
     );
   }
 
+  Future<void> _openProfile(BuildContext context) async {
+    final user = SessionContext.user;
+    if (user == null) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AccountProfileScreen(
+          user: user,
+          authRepository: RepositoryRegistry.instance.authRepository,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = SessionContext.user;
@@ -42,10 +57,35 @@ class WorkerAppBarActions extends StatelessWidget {
       children: [
         const ThemeModeButton(),
         StaffNotificationBell(user: user, repository: repository),
-        IconButton(
-          tooltip: 'Logout',
-          onPressed: () => _logout(context),
-          icon: const Icon(Icons.logout_rounded),
+        PopupMenuButton<String>(
+          tooltip: 'Menu',
+          icon: const Icon(Icons.menu_rounded),
+          onSelected: (value) {
+            if (value == 'profile') _openProfile(context);
+            if (value == 'logout') _logout(context);
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem<String>(
+              value: 'profile',
+              child: Row(
+                children: [
+                  Icon(Icons.person_outline_rounded),
+                  SizedBox(width: 12),
+                  Text('My Profile'),
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout_rounded),
+                  SizedBox(width: 12),
+                  Text('Log out'),
+                ],
+              ),
+            ),
+          ],
         ),
         const SizedBox(width: 8),
       ],

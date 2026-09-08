@@ -605,7 +605,9 @@ class _VaccinationRemindersScreenState
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Row(
@@ -1392,7 +1394,7 @@ class _FollowUpHistory extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.grey.shade100,
+            color: Theme.of(context).colorScheme.surfaceContainerHigh,
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Text(

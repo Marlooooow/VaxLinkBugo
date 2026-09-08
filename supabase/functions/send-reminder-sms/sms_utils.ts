@@ -25,6 +25,48 @@ export function reminderMessage(target: {
   return `VaxLink Bugo reminder: ${target.childName} is due for ${target.vaccineName} Dose ${target.doseNumber} on ${due}. Open VaxLink or contact Bugo Health Center.`
 }
 
+export function groupedReminderMessage(target: {
+  childName: string
+  reminders: Array<{
+    vaccineName: string
+    doseNumber: number
+    dueOn: string
+    status: string
+  }>
+}): string {
+  const labels: Record<string, string> = {
+    overdue: 'Overdue',
+    due_today: 'Due today',
+    upcoming: 'Upcoming',
+  }
+  const order: Record<string, number> = {
+    overdue: 0,
+    due_today: 1,
+    upcoming: 2,
+  }
+  const grouped = new Map<string, string[]>()
+  const reminders = [...target.reminders].sort((left, right) => {
+    const statusOrder = (order[left.status] ?? 99) - (order[right.status] ?? 99)
+    return statusOrder || left.dueOn.localeCompare(right.dueOn)
+  })
+  for (const reminder of reminders) {
+    const due = new Date(`${reminder.dueOn}T00:00:00Z`).toLocaleDateString('en-PH', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'Asia/Manila',
+    })
+    const item = `${reminder.vaccineName} Dose ${reminder.doseNumber} (${due})`
+    const items = grouped.get(reminder.status) ?? []
+    items.push(item)
+    grouped.set(reminder.status, items)
+  }
+  const details = [...grouped.entries()]
+    .map(([status, items]) => `${labels[status] ?? status}: ${items.join(', ')}`)
+    .join('; ')
+  return `VaxLink Bugo reminder for ${target.childName}. ${details}. Open VaxLink or contact Bugo Health Center.`
+}
+
 export function providerResult(status: number, payload: unknown): {
   accepted: boolean
   messageId: string | null

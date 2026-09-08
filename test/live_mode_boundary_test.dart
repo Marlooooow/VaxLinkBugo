@@ -15,7 +15,7 @@ import 'package:qr_code_based_pediatric_vaccination/repositories/supabase_appoin
 import 'package:qr_code_based_pediatric_vaccination/repositories/supabase_reminder_repository.dart';
 import 'package:qr_code_based_pediatric_vaccination/repositories/supabase_advisory_insight_repository.dart';
 import 'package:qr_code_based_pediatric_vaccination/repositories/live_qr_repository.dart';
-import 'package:qr_code_based_pediatric_vaccination/repositories/pending_live_referral_repository.dart';
+import 'package:qr_code_based_pediatric_vaccination/repositories/supabase_referral_repository.dart';
 
 void main() {
   test(
@@ -60,39 +60,26 @@ void main() {
         isA<SupabaseAdvisoryInsightRepository>(),
       );
       expect(registry.qrRepository, isA<LiveQrRepository>());
-      expect(registry.referralRepository, isA<PendingLiveReferralRepository>());
+      expect(registry.referralRepository, isA<SupabaseReferralRepository>());
       final unavailable = throwsA(isA<LiveOperationUnavailable>());
-      await expectLater(
-        registry.inventoryRepository.consumeDoses({'bcg': 1}),
-        unavailable,
-      );
-      await expectLater(
-        registry.vaccinationRepository.recordVaccinations([]),
-        unavailable,
+      expect(
+        await registry.vaccinationRepository.recordVaccinations([]),
+        isEmpty,
       );
       await expectLater(registry.qrRepository.simulateScan(), unavailable);
       await expectLater(
-        registry.referralRepository.simulateReferralScan(),
+        registry.reminderRepository.performBatchAction(
+          const ReminderBatchActionRequest(
+            reminderIds: ['real-id'],
+            action: ReminderFollowUpAction.mockSms,
+            outcome: ReminderFollowUpOutcome.reminderSent,
+            assignedToUserId: null,
+            notes: '',
+            performedByUserId: 'ignored',
+          ),
+        ),
         unavailable,
       );
-      for (final action in [
-        ReminderFollowUpAction.mockSms,
-        ReminderFollowUpAction.printedList,
-      ]) {
-        await expectLater(
-          registry.reminderRepository.performBatchAction(
-            ReminderBatchActionRequest(
-              reminderIds: ['real-id'],
-              action: action,
-              outcome: ReminderFollowUpOutcome.reminderSent,
-              assignedToUserId: null,
-              notes: '',
-              performedByUserId: 'ignored',
-            ),
-          ),
-          unavailable,
-        );
-      }
       expect(requests, 0);
     },
   );

@@ -4,7 +4,6 @@ import '../models/inventory_transaction.dart';
 import '../models/vaccine_batch.dart';
 import '../models/vaccine_inventory.dart';
 import 'inventory_repository.dart';
-import 'live_data_access.dart';
 
 class SupabaseInventoryRepository implements InventoryRepository {
   final SupabaseClient _client;
@@ -35,6 +34,16 @@ class SupabaseInventoryRepository implements InventoryRepository {
     return rows
         .map<VaccineInventory>(_inventoryFromRow)
         .toList(growable: false);
+  }
+
+  @override
+  Future<Map<String, int>> getInventoryAttentionCounts() async {
+    final rows = await _client.rpc('get_inventory_attention_counts') as List;
+    return {
+      for (final raw in rows)
+        (raw as Map)['vaccine_id'] as String:
+            ((raw)['attention_count'] as num).toInt(),
+    };
   }
 
   @override
@@ -78,6 +87,36 @@ class SupabaseInventoryRepository implements InventoryRepository {
   }
 
   @override
+  Future<InventoryPage<VaccineBatch>> getBatchesPage(
+    String vaccineId, {
+    int limit = 10,
+    int offset = 0,
+  }) async {
+    final inventory = await _client
+        .from('vaccine_inventory')
+        .select('id')
+        .eq('vaccine_id', vaccineId)
+        .maybeSingle();
+    if (inventory == null) {
+      return const InventoryPage(items: [], hasMore: false, nextOffset: 0);
+    }
+    final rows = await _client
+        .from('vaccine_batches')
+        .select(_batchSelect)
+        .eq('inventory_id', inventory['id'])
+        .order('expiry_date')
+        .range(offset, offset + limit);
+    final parsed = rows.map<VaccineBatch>(_batchFromRow).toList();
+    final hasMore = parsed.length > limit;
+    final items = parsed.take(limit).toList(growable: false);
+    return InventoryPage(
+      items: items,
+      hasMore: hasMore,
+      nextOffset: offset + items.length,
+    );
+  }
+
+  @override
   Future<List<VaccineBatch>> getAllBatches() async {
     final rows = await _client
         .from('vaccine_batches')
@@ -98,6 +137,32 @@ class SupabaseInventoryRepository implements InventoryRepository {
     return rows
         .map<InventoryTransaction>(_transactionFromRow)
         .toList(growable: false);
+  }
+
+  @override
+  Future<InventoryPage<InventoryTransaction>> getTransactionsPage(
+    String vaccineId, {
+    int limit = 10,
+    int offset = 0,
+  }) async {
+    final inventory = await _inventoryId(vaccineId);
+    if (inventory == null) {
+      return const InventoryPage(items: [], hasMore: false, nextOffset: 0);
+    }
+    final rows = await _client
+        .from('inventory_transactions')
+        .select(_transactionSelect)
+        .eq('inventory_id', inventory)
+        .order('created_at', ascending: false)
+        .range(offset, offset + limit);
+    final parsed = rows.map<InventoryTransaction>(_transactionFromRow).toList();
+    final hasMore = parsed.length > limit;
+    final items = parsed.take(limit).toList(growable: false);
+    return InventoryPage(
+      items: items,
+      hasMore: hasMore,
+      nextOffset: offset + items.length,
+    );
   }
 
   @override
@@ -150,8 +215,7 @@ class SupabaseInventoryRepository implements InventoryRepository {
       final batches = await getBatches(entry.key);
       for (final batch in batches) {
         if (remaining == 0) break;
-        if (!batch.canBeUsed ||
-            batch.expiryDate.isBefore(DateTime.now())) {
+        if (!batch.canBeUsed || batch.expiryDate.isBefore(DateTime.now())) {
           continue;
         }
         final take = remaining > batch.availableDoses

@@ -1,5 +1,5 @@
-import '../models/guardian_profile.dart';
-import '../models/guardian_invitation.dart';
+import '../models/guardian/guardian_profile.dart';
+import '../models/guardian/guardian_invitation.dart';
 
 class GuardianInvitationIssueResult {
   final GuardianProfile guardian;

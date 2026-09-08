@@ -54,7 +54,12 @@ class _VaccinationAppointmentsScreenState
     extends State<VaccinationAppointmentsScreen> {
   late final AppointmentRepository _repository;
   late Future<List<VaccinationAppointment>> _appointments;
-  late Future<List<AppointmentSlotOffer>> _offers;
+  late Future<int> _pendingOfferCount;
+  final List<VaccinationAppointment> _loadedAppointments = [];
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  int _nextOffset = 0;
+  int _totalCount = 0;
 
   @override
   void initState() {
@@ -66,11 +71,53 @@ class _VaccinationAppointmentsScreenState
 
   void _reload() {
     _appointments = widget.healthWorkerMode
-        ? _repository.getFacilityAppointments()
+        ? _loadAppointmentPage(reset: true)
         : _repository.getGuardianAppointments(widget.guardianId!);
-    _offers = widget.healthWorkerMode
-        ? _repository.getFacilitySlotOffers()
-        : _repository.getGuardianSlotOffers(widget.guardianId!);
+    _pendingOfferCount = widget.healthWorkerMode
+        ? _repository
+              .getFacilitySlotOffersPage(
+                status: AppointmentSlotOfferStatus.pending,
+                limit: 1,
+              )
+              .then((page) => page.pendingCount)
+        : _repository.getGuardianSlotOffers(widget.guardianId!).then(
+            (offers) => offers
+                .where(
+                  (offer) =>
+                      offer.status == AppointmentSlotOfferStatus.pending,
+                )
+                .length,
+          );
+  }
+
+  Future<List<VaccinationAppointment>> _loadAppointmentPage({
+    required bool reset,
+  }) async {
+    final page = await _repository.getFacilityAppointmentsPage(
+      initialAppointmentId: widget.initialAppointmentId,
+      waitlistVaccineId: widget.waitlistVaccineId,
+      waitlistOnly: widget.waitlistOnly,
+      limit: 20,
+      offset: reset ? 0 : _nextOffset,
+    );
+    if (reset) _loadedAppointments.clear();
+    final ids = _loadedAppointments.map((item) => item.id).toSet();
+    _loadedAppointments.addAll(page.items.where((item) => ids.add(item.id)));
+    _hasMore = page.hasMore;
+    _nextOffset = page.nextOffset;
+    _totalCount = page.totalCount;
+    return List.unmodifiable(_loadedAppointments);
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || !widget.healthWorkerMode) return;
+    setState(() => _loadingMore = true);
+    try {
+      final items = await _loadAppointmentPage(reset: false);
+      if (mounted) setState(() => _appointments = Future.value(items));
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 
   Future<void> _reschedule(VaccinationAppointment appointment) async {
@@ -163,14 +210,10 @@ class _VaccinationAppointmentsScreenState
               ),
             ),
             const SizedBox(height: 16),
-            FutureBuilder<List<AppointmentSlotOffer>>(
-              future: _offers,
+            FutureBuilder<int>(
+              future: _pendingOfferCount,
               builder: (context, snapshot) {
-                final pending = (snapshot.data ?? <AppointmentSlotOffer>[])
-                    .where(
-                      (o) => o.status == AppointmentSlotOfferStatus.pending,
-                    )
-                    .length;
+                final pending = snapshot.data ?? 0;
                 return Card(
                   child: ListTile(
                     leading: const Icon(Icons.event_available_outlined),
@@ -228,6 +271,24 @@ class _VaccinationAppointmentsScreenState
                   onReschedule: () => _reschedule(item),
                 ),
               ),
+            if (widget.healthWorkerMode && items.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Showing ${items.length} of $_totalCount appointments',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              if (_loadingMore)
+                const Center(child: CircularProgressIndicator())
+              else if (_hasMore)
+                OutlinedButton.icon(
+                  onPressed: _loadMore,
+                  icon: const Icon(Icons.expand_more_rounded),
+                  label: const Text('Load 20 more'),
+                )
+              else
+                const Center(child: Text('All appointments are loaded.')),
+            ],
           ],
         );
       },

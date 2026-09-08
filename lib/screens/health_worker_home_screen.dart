@@ -4,6 +4,7 @@ import '../theme/theme_controller.dart';
 import '../models/app_user.dart';
 import '../models/vaccination_reminder.dart';
 import '../repositories/auth_repository.dart';
+import '../repositories/reminder_repository.dart';
 import '../services/session_context.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/bugo_brand_title.dart';
@@ -11,9 +12,9 @@ import '../widgets/dashboard_appointments.dart';
 import '../widgets/dashboard_charts.dart';
 import '../widgets/dashboard_stat_grid.dart';
 import 'external_vaccination_screen.dart';
+import 'account_profile_screen.dart';
 import 'guardian_patient_registration_screen.dart';
 import 'login_screen.dart';
-import 'qr_scan_screen.dart';
 import 'registered_families_screen.dart';
 import 'vaccine_inventory_screen.dart';
 import 'vaccination_reminders_screen.dart';
@@ -22,6 +23,7 @@ import 'child_link_requests_screen.dart';
 import 'advisory_insights_screen.dart';
 import 'staff_notifications_screen.dart';
 import 'staff_management_screen.dart';
+import 'vaccination_records_screen.dart';
 import '../widgets/app_loading.dart';
 import '../utils/user_facing_error.dart';
 
@@ -30,7 +32,7 @@ class HealthWorkerHomeScreen extends StatefulWidget {
   final AuthRepository authRepository;
   final bool servicesOnly;
   final int revision;
-  final ValueChanged<Set<String>>? onOpenFamilies;
+  final ValueChanged<Set<String>?>? onOpenFamilies;
 
   const HealthWorkerHomeScreen({
     super.key,
@@ -109,10 +111,45 @@ class _HealthWorkerHomeScreenState extends State<HealthWorkerHomeScreen> {
             user: user,
             repository: RepositoryRegistry.instance.staffNotificationRepository,
           ),
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: () => _logout(context),
-            icon: const Icon(Icons.logout_rounded),
+          PopupMenuButton<String>(
+            tooltip: 'Menu',
+            icon: const Icon(Icons.menu_rounded),
+            onSelected: (value) {
+              if (value == 'profile') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AccountProfileScreen(
+                      user: user,
+                      authRepository: authRepository,
+                    ),
+                  ),
+                );
+              }
+              if (value == 'logout') _logout(context);
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_outline_rounded),
+                    SizedBox(width: 12),
+                    Text('My Profile'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded),
+                    SizedBox(width: 12),
+                    Text('Log out'),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 8),
         ],
@@ -310,7 +347,8 @@ class _HealthWorkerHomeScreenState extends State<HealthWorkerHomeScreen> {
                         _open(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const QrScanScreen(),
+                            builder: (_) =>
+                                VaccinationRecordsScreen(healthWorker: user),
                           ),
                         );
                       },
@@ -416,28 +454,43 @@ class _TodayAtGlance extends StatefulWidget {
   State<_TodayAtGlance> createState() => _TodayAtGlanceState();
 }
 
+class _TodayAtGlanceData {
+  final ReminderSummary summary;
+  final List<VaccinationReminder> preview;
+
+  const _TodayAtGlanceData({required this.summary, required this.preview});
+}
+
 class _TodayAtGlanceState extends State<_TodayAtGlance> {
-  late Future<List<VaccinationReminder>> _followUps;
+  late Future<_TodayAtGlanceData> _followUps;
 
   void _refresh() => setState(() {
-    _followUps = RepositoryRegistry.instance.reminderRepository
-        .getFacilityFollowUps();
+    _followUps = _load();
   });
+
+  Future<_TodayAtGlanceData> _load() async {
+    final repository = RepositoryRegistry.instance.reminderRepository;
+    final results = await Future.wait<Object>([
+      repository.getFacilityFollowUpSummary(),
+      repository.getFacilityFollowUpsPage(limit: 3),
+    ]);
+    return _TodayAtGlanceData(
+      summary: results[0] as ReminderSummary,
+      preview: (results[1] as ReminderPage).items,
+    );
+  }
 
   @override
   void initState() {
     super.initState();
-    _followUps = RepositoryRegistry.instance.reminderRepository
-        .getFacilityFollowUps();
+    _followUps = _load();
   }
 
   String _doseLabel(VaccinationReminder item) =>
       '${item.vaccineName} Dose ${item.doseNumber}';
 
   @override
-  Widget build(
-    BuildContext context,
-  ) => FutureBuilder<List<VaccinationReminder>>(
+  Widget build(BuildContext context) => FutureBuilder<_TodayAtGlanceData>(
     future: _followUps,
     builder: (context, snapshot) {
       if (snapshot.connectionState == ConnectionState.waiting) {
@@ -458,14 +511,15 @@ class _TodayAtGlanceState extends State<_TodayAtGlance> {
           ],
         );
       }
-      final followUps = (snapshot.data ?? const <VaccinationReminder>[])
+      final data = snapshot.data!;
+      final followUps = data.preview
           .where(
             (item) =>
                 item.status == VaccinationReminderStatus.dueToday ||
                 item.status == VaccinationReminderStatus.overdue,
           )
           .toList();
-      final guardianIds = followUps.map((item) => item.guardianId).toSet();
+      final guardianIds = data.summary.guardianIds.toSet();
       final preview = followUps.take(3).toList(growable: false);
       return Column(
         children: [
@@ -481,7 +535,7 @@ class _TodayAtGlanceState extends State<_TodayAtGlance> {
               ),
               DashboardStat(
                 'Vaccines due',
-                followUps.length,
+                data.summary.dueToday + data.summary.overdue,
                 Icons.vaccines_outlined,
                 widget.green,
                 actionLabel: 'View reminders',
@@ -489,11 +543,7 @@ class _TodayAtGlanceState extends State<_TodayAtGlance> {
               ),
               DashboardStat(
                 'Due today',
-                followUps
-                    .where(
-                      (r) => r.status == VaccinationReminderStatus.dueToday,
-                    )
-                    .length,
+                data.summary.dueToday,
                 Icons.today_outlined,
                 const Color(0xFF946000),
                 actionLabel: 'View due today',
@@ -502,9 +552,7 @@ class _TodayAtGlanceState extends State<_TodayAtGlance> {
               ),
               DashboardStat(
                 'Overdue',
-                followUps
-                    .where((r) => r.status == VaccinationReminderStatus.overdue)
-                    .length,
+                data.summary.overdue,
                 Icons.notification_important_outlined,
                 const Color(0xFFB42335),
                 actionLabel: 'View overdue',
@@ -514,7 +562,7 @@ class _TodayAtGlanceState extends State<_TodayAtGlance> {
             ],
           ),
           const SizedBox(height: 16),
-          FollowUpVaccineChart(reminders: followUps),
+          FollowUpVaccineChart(summary: data.summary.vaccineCounts),
           const SizedBox(height: 10),
           Card(
             margin: EdgeInsets.zero,
@@ -627,7 +675,9 @@ class _WorkerCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE7EDF4)),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: Row(
             children: [
@@ -687,7 +737,7 @@ class _InfoBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE7EDF4)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

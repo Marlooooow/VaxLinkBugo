@@ -1,4 +1,4 @@
-import 'person_name.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/person_name.dart';
 
 enum StaffType { nurse, midwife, barangayHealthWorker, physician }
 
@@ -12,6 +12,20 @@ extension StaffTypeDisplay on StaffType {
 }
 
 enum StaffAccessStatus { invitationPending, active, disabled }
+
+class StaffPage {
+  final List<StaffMember> items;
+  final int totalCount;
+  final bool hasMore;
+  final int nextOffset;
+
+  const StaffPage({
+    required this.items,
+    required this.totalCount,
+    required this.hasMore,
+    required this.nextOffset,
+  });
+}
 
 class StaffMember {
   final String id;

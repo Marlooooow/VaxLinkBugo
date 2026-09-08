@@ -7,7 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../models/child_profile.dart';
+import '../models/child/child_profile.dart';
 
 class ChildQrScreen extends StatefulWidget {
   final ChildProfile child;

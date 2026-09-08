@@ -153,6 +153,22 @@ class MockInventoryRepository implements InventoryRepository {
   }
 
   @override
+  Future<Map<String, int>> getInventoryAttentionCounts() async {
+    final now = DateTime.now();
+    final counts = <String, int>{};
+    for (final batch in _batches) {
+      final needsAttention =
+          batch.safetyStatus == VaccineBatchSafetyStatus.quarantined ||
+          (batch.availableDoses > 0 &&
+              batch.statusAsOf(now) == VaccineBatchStatus.expired);
+      if (needsAttention) {
+        counts.update(batch.vaccineId, (value) => value + 1, ifAbsent: () => 1);
+      }
+    }
+    return counts;
+  }
+
+  @override
   Future<List<VaccineBatch>> getBatches(String vaccineId) async {
     await Future.delayed(const Duration(milliseconds: 300));
     final results =
@@ -161,6 +177,21 @@ class MockInventoryRepository implements InventoryRepository {
             .toList(growable: false)
           ..sort((a, b) => a.expiryDate.compareTo(b.expiryDate));
     return results;
+  }
+
+  @override
+  Future<InventoryPage<VaccineBatch>> getBatchesPage(
+    String vaccineId, {
+    int limit = 10,
+    int offset = 0,
+  }) async {
+    final all = await getBatches(vaccineId);
+    final items = all.skip(offset).take(limit).toList(growable: false);
+    return InventoryPage(
+      items: items,
+      hasMore: offset + items.length < all.length,
+      nextOffset: offset + items.length,
+    );
   }
 
   @override
@@ -180,6 +211,21 @@ class MockInventoryRepository implements InventoryRepository {
             .toList(growable: false)
           ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
     return results;
+  }
+
+  @override
+  Future<InventoryPage<InventoryTransaction>> getTransactionsPage(
+    String vaccineId, {
+    int limit = 10,
+    int offset = 0,
+  }) async {
+    final all = await getTransactions(vaccineId);
+    final items = all.skip(offset).take(limit).toList(growable: false);
+    return InventoryPage(
+      items: items,
+      hasMore: offset + items.length < all.length,
+      nextOffset: offset + items.length,
+    );
   }
 
   @override

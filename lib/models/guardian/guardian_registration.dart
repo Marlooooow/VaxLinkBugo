@@ -1,7 +1,7 @@
-import 'child_profile.dart';
+import '../child/child_profile.dart';
 import 'guardian_profile.dart';
 import 'guardian_invitation.dart';
-import 'person_name.dart';
+import '../person_name.dart';
 
 class GuardianRegistrationRequest {
   final String guardianName;

@@ -4,6 +4,34 @@ enum AdvisoryInsightSeverity { low, medium, high }
 
 enum AdvisoryInsightStatus { newInsight, reviewed, actioned, dismissed }
 
+class AdvisoryInsightSummary {
+  final int high;
+  final int medium;
+  final int newCount;
+
+  const AdvisoryInsightSummary({
+    this.high = 0,
+    this.medium = 0,
+    this.newCount = 0,
+  });
+}
+
+class AdvisoryInsightPage {
+  final List<AdvisoryInsight> items;
+  final AdvisoryInsightSummary summary;
+  final int totalCount;
+  final bool hasMore;
+  final int nextOffset;
+
+  const AdvisoryInsightPage({
+    required this.items,
+    required this.summary,
+    required this.totalCount,
+    required this.hasMore,
+    required this.nextOffset,
+  });
+}
+
 class AdvisoryInsight {
   final String id;
   final String insightCode;

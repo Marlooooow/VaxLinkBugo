@@ -28,13 +28,22 @@ class AdvisoryInsightsScreen extends StatefulWidget {
 }
 
 class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
+  static const _pageSize = 20;
   late final AdvisoryInsightRepository _repository;
-  final Map<String, AdvisoryInsight> _updated = {};
   final Set<String> _saving = {};
-  late Future<List<AdvisoryInsight>> _insights;
+  List<AdvisoryInsight> _insights = [];
+  AdvisoryInsightSummary _summary = const AdvisoryInsightSummary();
   AdvisoryInsightSeverity? _severity;
   AdvisoryInsightStatus? _status;
   String? _focusedInsightId;
+  Object? _error;
+  int _totalCount = 0;
+  int _nextOffset = 0;
+  int _requestVersion = 0;
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  bool _generating = false;
 
   @override
   void initState() {
@@ -43,10 +52,115 @@ class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
     _repository =
         widget.repository ??
         RepositoryRegistry.instance.advisoryInsightRepository;
-    _reload();
+    _loadFirstPage();
   }
 
-  void _reload() => _insights = _repository.getFacilityInsights();
+  Future<void> _loadFirstPage() async {
+    final version = ++_requestVersion;
+    setState(() {
+      _loading = true;
+      _loadingMore = false;
+      _error = null;
+      _insights = [];
+      _totalCount = 0;
+      _nextOffset = 0;
+      _hasMore = false;
+    });
+    try {
+      final page = await _repository.getFacilityInsightsPage(
+        severity: _severity,
+        status: _status,
+        insightId: _focusedInsightId,
+        limit: _pageSize,
+      );
+      if (!mounted || version != _requestVersion) return;
+      setState(() {
+        _insights = page.items;
+        _summary = page.summary;
+        _totalCount = page.totalCount;
+        _nextOffset = page.nextOffset;
+        _hasMore = page.hasMore;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted || version != _requestVersion) return;
+      setState(() {
+        _error = error;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadNextPage() async {
+    if (_loading || _loadingMore || !_hasMore) return;
+    final version = _requestVersion;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await _repository.getFacilityInsightsPage(
+        severity: _severity,
+        status: _status,
+        insightId: _focusedInsightId,
+        limit: _pageSize,
+        offset: _nextOffset,
+      );
+      if (!mounted || version != _requestVersion) return;
+      setState(() {
+        final ids = _insights.map((item) => item.id).toSet();
+        _insights.addAll(page.items.where((item) => ids.add(item.id)));
+        _summary = page.summary;
+        _totalCount = page.totalCount;
+        _nextOffset = page.nextOffset;
+        _hasMore = page.hasMore;
+        _loadingMore = false;
+      });
+    } catch (error) {
+      if (!mounted || version != _requestVersion) return;
+      setState(() {
+        _error = error;
+        _loadingMore = false;
+      });
+    }
+  }
+
+  Future<void> _generate() async {
+    if (_generating ||
+        _saving.isNotEmpty ||
+        _repository is! AdvisoryInsightGenerator) {
+      return;
+    }
+    setState(() => _generating = true);
+    try {
+      final count = await (_repository as AdvisoryInsightGenerator)
+          .generateFacilityInsights();
+      if (!mounted) return;
+      setState(() => _focusedInsightId = null);
+      await _loadFirstPage();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            count == 0
+                ? 'No new operational insights were generated.'
+                : '$count new operational insight${count == 1 ? '' : 's'} saved.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserFacingError.message(
+              error,
+              fallback: 'New insights could not be generated.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
 
   Future<void> _update(
     AdvisoryInsight insight,
@@ -61,7 +175,20 @@ class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
         reviewedByUserId: widget.healthWorker.id,
       );
       if (!mounted) return;
-      setState(() => _updated[insight.id] = updated);
+      setState(() {
+        final index = _insights.indexWhere((item) => item.id == updated.id);
+        if (index >= 0) _insights[index] = updated;
+        if (insight.status == AdvisoryInsightStatus.newInsight &&
+            updated.status != AdvisoryInsightStatus.newInsight) {
+          _summary = AdvisoryInsightSummary(
+            high: _summary.high,
+            medium: _summary.medium,
+            newCount: (_summary.newCount - 1)
+                .clamp(0, _summary.newCount)
+                .toInt(),
+          );
+        }
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -97,133 +224,165 @@ class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
       ),
       actions: [
         const WorkerAppBarActions(),
+        if (_repository is AdvisoryInsightGenerator)
+          IconButton(
+            tooltip: 'Generate operational insights',
+            onPressed: _generating || _saving.isNotEmpty ? null : _generate,
+            icon: _generating
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.auto_awesome_rounded),
+          ),
         IconButton(
           tooltip: 'Refresh insights',
-          onPressed: _saving.isNotEmpty
-              ? null
-              : () => setState(() {
-                  _updated.clear();
-                  _reload();
-                }),
+          onPressed: _saving.isNotEmpty ? null : _loadFirstPage,
           icon: const Icon(Icons.refresh_rounded),
         ),
       ],
     ),
-    body: FutureBuilder<List<AdvisoryInsight>>(
-      future: _insights,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const AppLoadingView(
+    body: _loading
+        ? const AppLoadingView(
             title: 'Loading advisory insights',
             message: 'Reviewing the latest saved indicators.',
-          );
-        }
-        if (snapshot.hasError) {
-          return Center(
+          )
+        : _error != null && _insights.isEmpty
+        ? Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(
-                UserFacingError.message(
-                  snapshot.error!,
-                  fallback:
-                      'The insights could not be loaded. Please refresh and try again.',
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    UserFacingError.message(
+                      _error!,
+                      fallback:
+                          'The insights could not be loaded. Please refresh and try again.',
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  TextButton(
+                    onPressed: _loadFirstPage,
+                    child: const Text('Try again'),
+                  ),
+                ],
               ),
             ),
-          );
-        }
-        final all = (snapshot.data ?? const <AdvisoryInsight>[])
-            .map((item) => _updated[item.id] ?? item)
-            .toList();
-        final visible = _focusedInsightId != null
-            ? all.where((item) => item.id == _focusedInsightId).toList()
-            : _status != null
-            ? all.where((item) => item.status == _status).toList()
-            : _severity == null
-            ? all
-            : all.where((item) => item.severity == _severity).toList();
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
-          children: [
-            if (_focusedInsightId != null) ...[
-              const Text('Opened from notification'),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: () => setState(() => _focusedInsightId = null),
-                  child: const Text('View all insights'),
+          )
+        : ListView(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+            children: [
+              if (_focusedInsightId != null) ...[
+                const Text('Opened from notification'),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () {
+                      setState(() => _focusedInsightId = null);
+                      _loadFirstPage();
+                    },
+                    child: const Text('View all insights'),
+                  ),
                 ),
-              ),
-            ] else ...[
-              _AdvisoryNotice(provider: all.firstOrNull?.analysisProvider),
-              const SizedBox(height: 16),
-              _InsightSummary(
-                insights: all,
-                onHighTap: () => setState(() {
-                  _severity = AdvisoryInsightSeverity.high;
-                  _status = null;
-                }),
-                onMediumTap: () => setState(() {
-                  _severity = AdvisoryInsightSeverity.medium;
-                  _status = null;
-                }),
-                onNewTap: () => setState(() {
-                  _status = AdvisoryInsightStatus.newInsight;
-                  _severity = null;
-                }),
-              ),
-              const SizedBox(height: 14),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _filter('All', null),
-                    _filter('High', AdvisoryInsightSeverity.high),
-                    _filter('Medium', AdvisoryInsightSeverity.medium),
-                    _filter('Low', AdvisoryInsightSeverity.low),
-                    _statusFilter('New', AdvisoryInsightStatus.newInsight),
-                  ],
+              ] else ...[
+                _AdvisoryNotice(
+                  provider: _insights.firstOrNull?.analysisProvider,
                 ),
-              ),
-              const SizedBox(height: 14),
+                const SizedBox(height: 16),
+                _InsightSummary(
+                  summary: _summary,
+                  onHighTap: () =>
+                      _applyFilter(severity: AdvisoryInsightSeverity.high),
+                  onMediumTap: () =>
+                      _applyFilter(severity: AdvisoryInsightSeverity.medium),
+                  onNewTap: () =>
+                      _applyFilter(status: AdvisoryInsightStatus.newInsight),
+                ),
+                const SizedBox(height: 14),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _filter('All', null),
+                      _filter('High', AdvisoryInsightSeverity.high),
+                      _filter('Medium', AdvisoryInsightSeverity.medium),
+                      _filter('Low', AdvisoryInsightSeverity.low),
+                      _statusFilter('New', AdvisoryInsightStatus.newInsight),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+              if (_focusedInsightId == null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    'Showing ${_insights.length} of $_totalCount insight(s)',
+                  ),
+                ),
+              if (_insights.isEmpty)
+                _focusedInsightId != null
+                    ? const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'This insight is no longer available. You can view all insights for current updates.',
+                        ),
+                      )
+                    : const _EmptyInsights()
+              else
+                ..._insights.map(
+                  (insight) => _InsightCard(
+                    key: ValueKey(insight.id),
+                    insight: insight,
+                    initiallyExpanded: _focusedInsightId == insight.id,
+                    saving: _saving.contains(insight.id),
+                    onReviewed: () =>
+                        _update(insight, AdvisoryInsightStatus.reviewed),
+                    onDismissed: () =>
+                        _update(insight, AdvisoryInsightStatus.dismissed),
+                  ),
+                ),
+              if (_hasMore)
+                OutlinedButton.icon(
+                  onPressed: _loadingMore ? null : _loadNextPage,
+                  icon: _loadingMore
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.expand_more_rounded),
+                  label: Text(_loadingMore ? 'Loading…' : 'Load 20 more'),
+                )
+              else if (_insights.isNotEmpty && _focusedInsightId == null)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'All matching insights are displayed.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
             ],
-            if (visible.isEmpty)
-              _focusedInsightId != null
-                  ? const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'This insight is no longer available. You can view all insights for current updates.',
-                      ),
-                    )
-                  : const _EmptyInsights()
-            else
-              ...visible.map(
-                (insight) => _InsightCard(
-                  key: ValueKey(insight.id),
-                  insight: insight,
-                  initiallyExpanded: _focusedInsightId == insight.id,
-                  saving: _saving.contains(insight.id),
-                  onReviewed: () =>
-                      _update(insight, AdvisoryInsightStatus.reviewed),
-                  onDismissed: () =>
-                      _update(insight, AdvisoryInsightStatus.dismissed),
-                ),
-              ),
-          ],
-        );
-      },
-    ),
+          ),
   );
+
+  void _applyFilter({
+    AdvisoryInsightSeverity? severity,
+    AdvisoryInsightStatus? status,
+  }) {
+    setState(() {
+      _severity = severity;
+      _status = status;
+    });
+    _loadFirstPage();
+  }
 
   Widget _filter(String label, AdvisoryInsightSeverity? severity) => Padding(
     padding: const EdgeInsets.only(right: 8),
     child: ChoiceChip(
       label: Text(label),
       selected: _status == null && _severity == severity,
-      onSelected: (_) => setState(() {
-        _severity = severity;
-        _status = null;
-      }),
+      onSelected: (_) => _applyFilter(severity: severity),
     ),
   );
 
@@ -232,10 +391,7 @@ class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
     child: ChoiceChip(
       label: Text(label),
       selected: _status == status,
-      onSelected: (_) => setState(() {
-        _status = status;
-        _severity = null;
-      }),
+      onSelected: (_) => _applyFilter(status: status),
     ),
   );
 }
@@ -271,7 +427,7 @@ class _AdvisoryNotice extends StatelessWidget {
               ),
               const SizedBox(height: 5),
               Text(
-                'Prototype source: ${provider ?? 'mock-advisory-engine'}',
+                'Source: ${provider ?? 'schedule and facility records'}',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 11,
@@ -286,12 +442,12 @@ class _AdvisoryNotice extends StatelessWidget {
 }
 
 class _InsightSummary extends StatelessWidget {
-  final List<AdvisoryInsight> insights;
+  final AdvisoryInsightSummary summary;
   final VoidCallback onHighTap;
   final VoidCallback onMediumTap;
   final VoidCallback onNewTap;
   const _InsightSummary({
-    required this.insights,
+    required this.summary,
     required this.onHighTap,
     required this.onMediumTap,
     required this.onNewTap,
@@ -299,22 +455,15 @@ class _InsightSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    int count(AdvisoryInsightSeverity severity) =>
-        insights.where((item) => item.severity == severity).length;
     return Row(
       children: [
         Expanded(
-          child: _count(
-            '${count(AdvisoryInsightSeverity.high)}',
-            'High',
-            Colors.red,
-            onHighTap,
-          ),
+          child: _count('${summary.high}', 'High', Colors.red, onHighTap),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: _count(
-            '${count(AdvisoryInsightSeverity.medium)}',
+            '${summary.medium}',
             'Medium',
             Colors.orange,
             onMediumTap,
@@ -322,51 +471,42 @@ class _InsightSummary extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _count(
-            '${insights.where((item) => item.status == AdvisoryInsightStatus.newInsight).length}',
-            'New',
-            Colors.blue,
-            onNewTap,
-          ),
+          child: _count('${summary.newCount}', 'New', Colors.blue, onNewTap),
         ),
       ],
     );
   }
 
-  Widget _count(
-    String value,
-    String label,
-    Color color,
-    VoidCallback onTap,
-  ) => Material(
-    color: Colors.transparent,
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .07),
+  Widget _count(String value, String label, Color color, VoidCallback onTap) =>
+      Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: color.withValues(alpha: .18)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                color: color,
-                fontSize: 21,
-                fontWeight: FontWeight.w900,
-              ),
+          child: Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .07),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: color.withValues(alpha: .18)),
             ),
-            Text(label, style: const TextStyle(fontSize: 11.5)),
-          ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(label, style: const TextStyle(fontSize: 11.5)),
+              ],
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _InsightCard extends StatelessWidget {

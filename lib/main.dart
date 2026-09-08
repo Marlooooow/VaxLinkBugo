@@ -3,6 +3,7 @@ import 'app.dart';
 import 'repositories/repository_registry.dart';
 import 'services/app_bootstrap.dart';
 import 'services/app_configuration_loader.dart';
+import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
 
 Future<void> main() async {
@@ -16,18 +17,24 @@ Future<void> main() async {
   } catch (_) {
     // Configuration errors must never silently start a demo session.
     runApp(
-      const MaterialApp(
-        home: Scaffold(
-          body: SafeArea(
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'VaxLink could not start its live connection.\n\n'
-                  'Fully restart the application. If this continues, regenerate '
-                  'the bundled public Supabase configuration. Demo mode remains '
-                  'available as a separate launch.',
-                  textAlign: TextAlign.center,
+      ValueListenableBuilder<ThemeMode>(
+        valueListenable: ThemeController.mode,
+        builder: (context, mode, _) => MaterialApp(
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: mode,
+          home: const Scaffold(
+            body: SafeArea(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'VaxLink could not start its live connection.\n\n'
+                    'Fully restart the application. If this continues, regenerate '
+                    'the bundled public Supabase configuration. Demo mode remains '
+                    'available as a separate launch.',
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
             ),

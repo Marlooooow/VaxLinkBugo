@@ -152,6 +152,20 @@ class VaccinationAppointment {
   };
 }
 
+class AppointmentPage {
+  final List<VaccinationAppointment> items;
+  final int totalCount;
+  final bool hasMore;
+  final int nextOffset;
+
+  const AppointmentPage({
+    required this.items,
+    required this.totalCount,
+    required this.hasMore,
+    required this.nextOffset,
+  });
+}
+
 class AppointmentRequest {
   final int clinicalPriority;
   final DateTime? eligibleFrom;

@@ -174,7 +174,14 @@ export function buildDemoSeed(accounts, anchorDate) {
   for (const table of order) for (const row of data[table] ?? []) {
     const copy = { ...row };
     if (table === 'reminders') delete copy.appointment_id;
-    lines.push(insert(table,copy,table === 'vaccine_definitions' ? ' on conflict (id) do nothing' : ''));
+    const suffix = table === 'vaccine_definitions'
+      ? ' on conflict (id) do nothing'
+      : table === 'reminders'
+        ? ` on conflict (guardian_id,child_id,vaccine_id,dose_number) do update set ${Object.keys(copy)
+            .filter(key => !['guardian_id','child_id','vaccine_id','dose_number'].includes(key))
+            .map(key => `${key}=excluded.${key}`).join(',')}`
+        : '';
+    lines.push(insert(table,copy,suffix));
   }
   for (const reminder of data.reminders.filter(r => r.appointment_id)) {
     lines.push(`update public.reminders set appointment_id=${literal(reminder.appointment_id)} where id=${literal(reminder.id)};`);

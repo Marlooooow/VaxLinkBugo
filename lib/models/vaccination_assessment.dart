@@ -1,4 +1,4 @@
-import 'child_profile.dart';
+import 'child/child_profile.dart';
 import 'pnip_schedule_entry.dart';
 import 'vaccination_record.dart';
 

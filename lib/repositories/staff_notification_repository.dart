@@ -14,6 +14,13 @@ import 'mock_appointment_repository.dart';
 abstract class StaffNotificationRepository {
   Listenable get changes;
   Future<List<StaffNotification>> load();
+  Future<StaffNotificationPage> loadPage({
+    required String userId,
+    bool unreadOnly = false,
+    int limit = 20,
+    int offset = 0,
+  });
+  Future<int> unreadCount(String userId);
   bool isRead(String userId, String notificationId);
   Future<void> markRead(String userId, Iterable<String> notificationIds);
   Future<String> resetGuardianPassword(String requestId);
@@ -28,6 +35,22 @@ class UnavailableStaffNotificationRepository
   Listenable get changes => _changes;
   @override
   Future<List<StaffNotification>> load() async => const [];
+  @override
+  Future<StaffNotificationPage> loadPage({
+    required String userId,
+    bool unreadOnly = false,
+    int limit = 20,
+    int offset = 0,
+  }) async => const StaffNotificationPage(
+    items: [],
+    overallCount: 0,
+    totalCount: 0,
+    unreadCount: 0,
+    hasMore: false,
+    nextOffset: 0,
+  );
+  @override
+  Future<int> unreadCount(String userId) async => 0;
   @override
   bool isRead(String userId, String notificationId) => false;
   @override
@@ -56,6 +79,31 @@ class MockStaffNotificationRepository implements StaffNotificationRepository {
   Future<void> markRead(String userId, Iterable<String> notificationIds) async {
     (_receipts[userId] ??= {}).addAll(notificationIds);
     _changes.value++;
+  }
+
+  @override
+  Future<int> unreadCount(String userId) async =>
+      (await load()).where((item) => !isRead(userId, item.id)).length;
+
+  @override
+  Future<StaffNotificationPage> loadPage({
+    required String userId,
+    bool unreadOnly = false,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final all = await load();
+    final unread = all.where((item) => !isRead(userId, item.id)).toList();
+    final visible = unreadOnly ? unread : all;
+    final items = visible.skip(offset).take(limit).toList(growable: false);
+    return StaffNotificationPage(
+      items: items,
+      overallCount: all.length,
+      totalCount: visible.length,
+      unreadCount: unread.length,
+      hasMore: offset + items.length < visible.length,
+      nextOffset: offset + items.length,
+    );
   }
 
   @override
@@ -253,6 +301,51 @@ class SupabaseStaffNotificationRepository
   @override
   bool isRead(String userId, String notificationId) =>
       _readIds.contains(notificationId);
+
+  @override
+  Future<int> unreadCount(String userId) async {
+    final value = await _client.rpc('get_staff_notification_unread_count');
+    return (value as num?)?.toInt() ?? 0;
+  }
+
+  @override
+  Future<StaffNotificationPage> loadPage({
+    required String userId,
+    bool unreadOnly = false,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final payload = Map<String, dynamic>.from(
+      await _client.rpc(
+        'get_staff_notification_page',
+        params: {
+          'p_unread_only': unreadOnly,
+          'p_page_size': limit,
+          'p_page_offset': offset,
+        },
+      ) as Map,
+    );
+    final items = (payload['items'] as List? ?? const [])
+        .map(
+          (row) => StaffNotification.fromJson(
+            Map<String, dynamic>.from(row as Map),
+          ),
+        )
+        .toList(growable: false);
+    if (offset == 0) _readIds.clear();
+    _readIds.addAll(
+      (payload['read_ids'] as List? ?? const []).whereType<String>(),
+    );
+    return StaffNotificationPage(
+      items: items,
+      overallCount:
+          (payload['overall_count'] as num?)?.toInt() ?? items.length,
+      totalCount: (payload['total_count'] as num?)?.toInt() ?? items.length,
+      unreadCount: (payload['unread_count'] as num?)?.toInt() ?? 0,
+      hasMore: payload['has_more'] as bool? ?? false,
+      nextOffset: (payload['next_offset'] as num?)?.toInt() ?? offset,
+    );
+  }
 
   @override
   Future<void> markRead(String userId, Iterable<String> notificationIds) async {

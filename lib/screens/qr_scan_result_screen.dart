@@ -33,7 +33,7 @@ class QrScanResultScreen extends StatelessWidget {
     final secondary = colorScheme.secondary;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -197,7 +197,7 @@ class QrScanResultScreen extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
+                        color: Theme.of(context).colorScheme.surfaceContainer,
                         borderRadius: BorderRadius.circular(18),
                       ),
                       child: Row(

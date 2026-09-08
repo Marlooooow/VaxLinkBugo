@@ -39,6 +39,39 @@ class _Repository implements AdvisoryInsightRepository {
   }
 
   @override
+  Future<AdvisoryInsightPage> getFacilityInsightsPage({
+    AdvisoryInsightSeverity? severity,
+    AdvisoryInsightStatus? status,
+    String? insightId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final all = await getFacilityInsights();
+    final filtered = all.where((value) {
+      if (insightId != null && value.id != insightId) return false;
+      if (severity != null && value.severity != severity) return false;
+      return status == null || value.status == status;
+    }).toList();
+    return AdvisoryInsightPage(
+      items: filtered,
+      summary: AdvisoryInsightSummary(
+        high: all
+            .where((value) => value.severity == AdvisoryInsightSeverity.high)
+            .length,
+        medium: all
+            .where((value) => value.severity == AdvisoryInsightSeverity.medium)
+            .length,
+        newCount: all
+            .where((value) => value.status == AdvisoryInsightStatus.newInsight)
+            .length,
+      ),
+      totalCount: filtered.length,
+      hasMore: false,
+      nextOffset: filtered.length,
+    );
+  }
+
+  @override
   Future<AdvisoryInsight> updateStatus({
     required String insightId,
     required AdvisoryInsightStatus status,

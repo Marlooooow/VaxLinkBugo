@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/app_user.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/guardian_invitation.dart';
 import 'package:qr_code_based_pediatric_vaccination/repositories/auth_repository.dart';
 import 'package:qr_code_based_pediatric_vaccination/screens/guardian_activation_screen.dart';

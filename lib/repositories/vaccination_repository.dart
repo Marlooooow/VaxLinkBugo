@@ -1,4 +1,4 @@
-import '../models/child_profile.dart';
+import '../models/child/child_profile.dart';
 import '../models/vaccination_assessment.dart';
 import '../models/pnip_schedule_entry.dart';
 import '../models/vaccination_record.dart';

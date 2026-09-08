@@ -13,6 +13,7 @@ import '../widgets/dashboard_appointments.dart';
 import '../widgets/app_loading.dart';
 import '../utils/user_facing_error.dart';
 import 'guardian_children_screen.dart';
+import 'account_profile_screen.dart';
 import 'login_screen.dart';
 import 'vaccination_reminders_screen.dart';
 import 'vaccination_appointments_screen.dart';
@@ -175,10 +176,45 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen>
               );
             },
           ),
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: () => _logout(context),
-            icon: const Icon(Icons.logout_rounded),
+          PopupMenuButton<String>(
+            tooltip: 'Menu',
+            icon: const Icon(Icons.menu_rounded),
+            onSelected: (value) {
+              if (value == 'profile') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AccountProfileScreen(
+                      user: user,
+                      authRepository: authRepository,
+                    ),
+                  ),
+                );
+              }
+              if (value == 'logout') _logout(context);
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_outline_rounded),
+                    SizedBox(width: 12),
+                    Text('My Profile'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded),
+                    SizedBox(width: 12),
+                    Text('Log out'),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 8),
         ],
@@ -378,7 +414,9 @@ class _FeatureCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE7EDF4)),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
           ),
           child: Row(
             children: [
@@ -437,7 +475,9 @@ class _InfoBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE7EDF4)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

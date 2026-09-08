@@ -31,6 +31,7 @@ class _EditGuardianScreenState extends State<EditGuardianScreen> {
   late final TextEditingController _lastName;
   late final TextEditingController _suffix;
   late final TextEditingController _phone;
+  late final TextEditingController _email;
   late final TextEditingController _address;
   final _reason = TextEditingController();
   late bool _onlineAccessRequested;
@@ -46,6 +47,7 @@ class _EditGuardianScreenState extends State<EditGuardianScreen> {
     _lastName = TextEditingController(text: widget.guardian.lastName ?? '');
     _suffix = TextEditingController(text: widget.guardian.suffix ?? '');
     _phone = TextEditingController(text: widget.guardian.phoneNumber ?? '');
+    _email = TextEditingController(text: widget.guardian.emailAddress ?? '');
     _address = TextEditingController(text: widget.guardian.address);
     _sex = widget.guardian.sex;
     _birthDate = widget.guardian.birthDate;
@@ -62,6 +64,7 @@ class _EditGuardianScreenState extends State<EditGuardianScreen> {
     _lastName.dispose();
     _suffix.dispose();
     _phone.dispose();
+    _email.dispose();
     _address.dispose();
     _reason.dispose();
     super.dispose();
@@ -88,6 +91,7 @@ class _EditGuardianScreenState extends State<EditGuardianScreen> {
           birthDate: _birthDate,
           sex: _sex,
           phoneNumber: _phone.text,
+          emailAddress: _email.text,
           address: _address.text,
           hasUserAccount: _onlineAccessRequested,
           reason: _reason.text,
@@ -152,25 +156,55 @@ class _EditGuardianScreenState extends State<EditGuardianScreen> {
             const SizedBox(height: 14),
             Row(
               children: [
-                Expanded(child: TextFormField(controller: _firstName, decoration: const InputDecoration(labelText: 'First name'), validator: _required)),
+                Expanded(
+                  child: TextFormField(
+                    controller: _firstName,
+                    decoration: const InputDecoration(labelText: 'First name'),
+                    validator: _required,
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: TextFormField(controller: _lastName, decoration: const InputDecoration(labelText: 'Last name'), validator: _required)),
+                Expanded(
+                  child: TextFormField(
+                    controller: _lastName,
+                    decoration: const InputDecoration(labelText: 'Last name'),
+                    validator: _required,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: TextFormField(controller: _middleName, decoration: const InputDecoration(labelText: 'Middle name or initial (optional)'))),
+                Expanded(
+                  child: TextFormField(
+                    controller: _middleName,
+                    decoration: const InputDecoration(
+                      labelText: 'Middle name or initial (optional)',
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 10),
-                SizedBox(width: 105, child: TextFormField(controller: _suffix, decoration: const InputDecoration(labelText: 'Suffix'))),
+                SizedBox(
+                  width: 105,
+                  child: TextFormField(
+                    controller: _suffix,
+                    decoration: const InputDecoration(labelText: 'Suffix'),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             InkWell(
               onTap: _selectBirthDate,
               child: InputDecorator(
-                decoration: const InputDecoration(labelText: 'Guardian birth date', suffixIcon: Icon(Icons.calendar_month_rounded)),
-                child: Text(_birthDate == null ? 'Select date' : _date(_birthDate!)),
+                decoration: const InputDecoration(
+                  labelText: 'Guardian birth date',
+                  suffixIcon: Icon(Icons.calendar_month_rounded),
+                ),
+                child: Text(
+                  _birthDate == null ? 'Select date' : _date(_birthDate!),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -192,6 +226,21 @@ class _EditGuardianScreenState extends State<EditGuardianScreen> {
                 labelText: 'Mobile number (optional)',
               ),
               keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _email,
+              decoration: const InputDecoration(
+                labelText: 'Email address (optional)',
+              ),
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) {
+                final email = value?.trim() ?? '';
+                if (email.isEmpty) return null;
+                return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)
+                    ? null
+                    : 'Enter a valid email address.';
+              },
             ),
             const SizedBox(height: 12),
             TextFormField(

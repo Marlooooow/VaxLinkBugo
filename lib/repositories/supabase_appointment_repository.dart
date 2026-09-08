@@ -49,12 +49,97 @@ class SupabaseAppointmentRepository implements AppointmentRepository {
   }
 
   @override
+  Future<List<VaccinationAppointment>> getFacilityUpcomingAppointments({
+    int limit = 2,
+  }) async {
+    final facility = await _access.staffFacilityId();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final rows = await _client
+        .from('appointments')
+        .select(_select)
+        .eq('facility_id', facility)
+        .gte('scheduled_for', today.toIso8601String())
+        .inFilter('status', const ['scheduled', 'confirmed', 'checked_in'])
+        .order('scheduled_for')
+        .limit(limit.clamp(1, 10).toInt());
+    return rows.map(fromRow).toList(growable: false);
+  }
+
+  @override
+  Future<AppointmentPage> getFacilityAppointmentsPage({
+    String? initialAppointmentId,
+    String? waitlistVaccineId,
+    bool waitlistOnly = false,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final payload = Map<String, dynamic>.from(
+      await _client.rpc(
+            'get_facility_appointment_page',
+            params: {
+              'p_appointment_id': initialAppointmentId,
+              'p_waitlist_vaccine_id': waitlistVaccineId,
+              'p_waitlist_only': waitlistOnly,
+              'p_page_size': limit,
+              'p_page_offset': offset,
+            },
+          )
+          as Map,
+    );
+    final items = (payload['items'] as List? ?? const [])
+        .map((row) => fromRow(Map<String, dynamic>.from(row as Map)))
+        .toList(growable: false);
+    return AppointmentPage(
+      items: items,
+      totalCount: (payload['total_count'] as num?)?.toInt() ?? items.length,
+      hasMore: payload['has_more'] as bool? ?? false,
+      nextOffset: (payload['next_offset'] as num?)?.toInt() ?? offset,
+    );
+  }
+
+  @override
   Future<List<AppointmentSlotOffer>> getGuardianSlotOffers(
     String guardianId,
   ) async => _offers(guardianId: await _access.guardianId(guardianId));
   @override
   Future<List<AppointmentSlotOffer>> getFacilitySlotOffers() async =>
       _offers(facilityId: await _access.staffFacilityId());
+
+  @override
+  Future<AppointmentOfferPage> getFacilitySlotOffersPage({
+    AppointmentSlotOfferStatus? status,
+    String? initialOfferId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final payload = Map<String, dynamic>.from(
+      await _client.rpc(
+            'get_facility_appointment_offer_page',
+            params: {
+              'p_status': status?.name,
+              'p_offer_id': initialOfferId,
+              'p_page_size': limit,
+              'p_page_offset': offset,
+            },
+          )
+          as Map,
+    );
+    final items = (payload['items'] as List? ?? const [])
+        .map(
+          (row) => AppointmentSlotOffer.fromJson(
+            Map<String, dynamic>.from(row as Map),
+          ),
+        )
+        .toList(growable: false);
+    return AppointmentOfferPage(
+      items: items,
+      totalCount: (payload['total_count'] as num?)?.toInt() ?? items.length,
+      pendingCount: (payload['pending_count'] as num?)?.toInt() ?? 0,
+      hasMore: payload['has_more'] as bool? ?? false,
+      nextOffset: (payload['next_offset'] as num?)?.toInt() ?? offset,
+    );
+  }
 
   Future<List<AppointmentSlotOffer>> _offers({
     String? guardianId,
@@ -76,70 +161,91 @@ class SupabaseAppointmentRepository implements AppointmentRepository {
 
   @override
   Future<VaccinationAppointment> schedule(AppointmentRequest request) async {
-    final id = await _client.rpc(
-      'create_live_appointment',
-      params: {
-        'target_guardian_id': request.guardianId,
-        'target_child_id': request.childId,
-        'target_vaccine_id': request.vaccineId,
-        'target_dose_number': request.doseNumber,
-        'target_due_date': LiveDataAccess.date(request.pnipDueDate),
-        'target_scheduled_for': request.appointmentDate.toUtc().toIso8601String(),
-        'target_source': _snake(request.source.name),
-        'target_reason': request.reason,
-        'target_reminder_id': request.reminderId,
-        'target_status': 'scheduled',
-      },
-    ) as String;
+    final id =
+        await _client.rpc(
+              'create_live_appointment',
+              params: {
+                'target_guardian_id': request.guardianId,
+                'target_child_id': request.childId,
+                'target_vaccine_id': request.vaccineId,
+                'target_dose_number': request.doseNumber,
+                'target_due_date': LiveDataAccess.date(request.pnipDueDate),
+                'target_scheduled_for': request.appointmentDate
+                    .toUtc()
+                    .toIso8601String(),
+                'target_source': _snake(request.source.name),
+                'target_reason': request.reason,
+                'target_reminder_id': request.reminderId,
+                'target_status': 'scheduled',
+              },
+            )
+            as String;
     return _appointment(id);
   }
+
   @override
   Future<VaccinationAppointment> reschedule(
     RescheduleAppointmentRequest request,
   ) async {
-    final id = await _client.rpc(
-      'reschedule_live_appointment',
-      params: {
-        'target_appointment_id': request.appointmentId,
-        'target_scheduled_for': request.newAppointmentDate.toUtc().toIso8601String(),
-        'target_reason': request.reason,
-      },
-    ) as String;
+    final id =
+        await _client.rpc(
+              'reschedule_live_appointment',
+              params: {
+                'target_appointment_id': request.appointmentId,
+                'target_scheduled_for': request.newAppointmentDate
+                    .toUtc()
+                    .toIso8601String(),
+                'target_reason': request.reason,
+              },
+            )
+            as String;
     return _appointment(id);
   }
+
   @override
   Future<VaccinationAppointment> addToWaitlist(
     AppointmentRequest request,
   ) async {
-    final id = await _client.rpc(
-      'create_live_appointment',
-      params: {
-        'target_guardian_id': request.guardianId,
-        'target_child_id': request.childId,
-        'target_vaccine_id': request.vaccineId,
-        'target_dose_number': request.doseNumber,
-        'target_due_date': LiveDataAccess.date(request.pnipDueDate),
-        'target_scheduled_for': request.appointmentDate.toUtc().toIso8601String(),
-        'target_source': _snake(request.source.name),
-        'target_reason': request.reason,
-        'target_reminder_id': request.reminderId,
-        'target_status': 'waitlisted',
-      },
-    ) as String;
+    final id =
+        await _client.rpc(
+              'create_live_appointment',
+              params: {
+                'target_guardian_id': request.guardianId,
+                'target_child_id': request.childId,
+                'target_vaccine_id': request.vaccineId,
+                'target_dose_number': request.doseNumber,
+                'target_due_date': LiveDataAccess.date(request.pnipDueDate),
+                'target_scheduled_for': request.appointmentDate
+                    .toUtc()
+                    .toIso8601String(),
+                'target_source': _snake(request.source.name),
+                'target_reason': request.reason,
+                'target_reminder_id': request.reminderId,
+                'target_status': 'waitlisted',
+              },
+            )
+            as String;
     return _appointment(id);
   }
+
   @override
   Future<VaccinationAppointment> updateStatus(
     String appointmentId,
     VaccinationAppointmentStatus status,
     String updatedByUserId,
   ) async {
-    final id = await _client.rpc(
-      'update_live_appointment_status',
-      params: {'target_appointment_id': appointmentId, 'target_status': _snake(status.name)},
-    ) as String;
+    final id =
+        await _client.rpc(
+              'update_live_appointment_status',
+              params: {
+                'target_appointment_id': appointmentId,
+                'target_status': _snake(status.name),
+              },
+            )
+            as String;
     return _appointment(id);
   }
+
   @override
   Future<VaccinationAppointment?> respondToSlotOffer(
     String offerId,
@@ -147,10 +253,12 @@ class SupabaseAppointmentRepository implements AppointmentRepository {
     String respondedByUserId, {
     String responseChannel = 'guardian_online',
   }) async {
-    final id = await _client.rpc(
-      'respond_to_live_appointment_offer',
-      params: {'target_offer_id': offerId, 'accept_offer': accept},
-    ) as String?;
+    final id =
+        await _client.rpc(
+              'respond_to_live_appointment_offer',
+              params: {'target_offer_id': offerId, 'accept_offer': accept},
+            )
+            as String?;
     return id == null ? null : _appointment(id);
   }
 

@@ -28,14 +28,20 @@ class VaccineInventoryDetailsScreen extends StatefulWidget {
 class _VaccineInventoryDetailsScreenState
     extends State<VaccineInventoryDetailsScreen> {
   late Future<_InventoryDetailsData> _details;
+  bool _loadingBatches = false;
+  bool _loadingTransactions = false;
 
   @override
   void initState() {
     super.initState();
-    _reload();
+    _details = _loadDetails();
   }
 
-  void _reload() => _details = _loadDetails();
+  void _reload() {
+    setState(() {
+      _details = _loadDetails();
+    });
+  }
 
   Future<_InventoryDetailsData> _loadDetails() async {
     final inventory = await widget.repository.getVaccineInventory(
@@ -47,79 +53,80 @@ class _VaccineInventoryDetailsScreenState
     }
 
     final results = await Future.wait([
-      widget.repository.getBatches(widget.vaccineId),
-      widget.repository.getTransactions(widget.vaccineId),
+      widget.repository.getBatchesPage(widget.vaccineId),
+      widget.repository.getTransactionsPage(widget.vaccineId),
     ]);
+
+    final batchPage = results[0] as InventoryPage<VaccineBatch>;
+    final transactionPage = results[1] as InventoryPage<InventoryTransaction>;
 
     return _InventoryDetailsData(
       inventory: inventory,
-      batches: results[0] as List<VaccineBatch>,
-      transactions: results[1] as List<InventoryTransaction>,
+      batches: batchPage.items,
+      transactions: transactionPage.items,
+      hasMoreBatches: batchPage.hasMore,
+      nextBatchOffset: batchPage.nextOffset,
+      hasMoreTransactions: transactionPage.hasMore,
+      nextTransactionOffset: transactionPage.nextOffset,
     );
+  }
+
+  Future<void> _loadMoreBatches(_InventoryDetailsData data) async {
+    if (_loadingBatches || !data.hasMoreBatches) return;
+    setState(() => _loadingBatches = true);
+    try {
+      final page = await widget.repository.getBatchesPage(
+        widget.vaccineId,
+        offset: data.nextBatchOffset,
+      );
+      final next = data.copyWithBatchPage(page);
+      if (mounted) setState(() => _details = Future.value(next));
+    } finally {
+      if (mounted) setState(() => _loadingBatches = false);
+    }
+  }
+
+  Future<void> _loadMoreTransactions(_InventoryDetailsData data) async {
+    if (_loadingTransactions || !data.hasMoreTransactions) return;
+    setState(() => _loadingTransactions = true);
+    try {
+      final page = await widget.repository.getTransactionsPage(
+        widget.vaccineId,
+        offset: data.nextTransactionOffset,
+      );
+      final next = data.copyWithTransactionPage(page);
+      if (mounted) setState(() => _details = Future.value(next));
+    } finally {
+      if (mounted) setState(() => _loadingTransactions = false);
+    }
   }
 
   Future<void> _openAction(
     InventoryStockAction action,
     _InventoryDetailsData data,
   ) async {
-    final transaction = await Navigator.push<InventoryTransaction>(
+    final actionBatches = await widget.repository.getBatches(widget.vaccineId);
+    if (!mounted) return;
+    final result = await Navigator.push<InventoryStockActionResult>(
       context,
       MaterialPageRoute(
         builder: (_) => InventoryStockActionScreen(
           action: action,
           inventory: data.inventory,
-          batches: data.batches,
+          batches: actionBatches,
           repository: widget.repository,
         ),
       ),
     );
 
-    if (transaction == null || !mounted) return;
+    if (result == null || !mounted) return;
 
-    final previousBatch = transaction.batchId == null
-        ? null
-        : data.batches
-              .where((batch) => batch.id == transaction.batchId)
-              .firstOrNull;
-    final expectedBatchQuantity = previousBatch == null
-        ? null
-        : previousBatch.availableDoses + transaction.quantityChange;
+    final transaction = result.transaction;
 
-    // Update the visible cards immediately from the committed transaction.
-    // This prevents a short-lived stale read from making a successful stock
-    // action look as if it did nothing.
-    if (previousBatch != null &&
-        transaction.type != InventoryTransactionType.received) {
-      final updatedBatches = data.batches
-          .map(
-            (batch) => batch.id == previousBatch.id
-                ? batch.copyWith(availableDoses: expectedBatchQuantity)
-                : batch,
-          )
-          .toList(growable: false);
-      setState(
-        () => _details = Future.value(
-          _InventoryDetailsData(
-            inventory: data.inventory.copyWith(
-              availableDoses:
-                  data.inventory.availableDoses + transaction.quantityChange,
-            ),
-            batches: updatedBatches,
-            transactions: [
-              transaction,
-              ...data.transactions.where((item) => item.id != transaction.id),
-            ],
-          ),
-        ),
-      );
-    }
+    // Show the loading state and fetch the latest data from Supabase.
+    await _refreshAfterStockWrite();
 
-    // Confirm the same values against Supabase before replacing the local
-    // update. The app may briefly read an older snapshot after an RPC.
-    await _refreshAfterStockWrite(
-      batchId: transaction.batchId,
-      expectedBatchQuantity: expectedBatchQuantity,
-    );
+    if (!mounted) return;
 
     final message = switch (transaction.type) {
       InventoryTransactionType.received when transaction.quantityChange > 0 =>
@@ -140,35 +147,35 @@ class _VaccineInventoryDetailsScreenState
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _refreshAfterStockWrite({
-    String? batchId,
-    int? expectedBatchQuantity,
-  }) async {
-    const delays = <Duration>[
-      Duration(milliseconds: 300),
-      Duration(milliseconds: 800),
-      Duration(milliseconds: 1500),
-    ];
-    for (var attempt = 0; attempt < delays.length; attempt++) {
+  Future<void> _refreshAfterStockWrite() async {
+    if (!mounted) return;
+
+    // Start the fresh query immediately.
+    final refreshFuture = _loadDetails();
+
+    // Assign the pending Future so FutureBuilder displays the loading state
+    // while Supabase retrieves the newly committed data.
+    setState(() {
+      _details = refreshFuture;
+    });
+
+    try {
+      // Wait until the fresh data has been retrieved.
+      await refreshFuture;
+    } catch (error) {
       if (!mounted) return;
-      await Future<void>.delayed(delays[attempt]);
-      if (!mounted) return;
-      final nextDetails = _loadDetails();
-      try {
-        final loaded = await nextDetails;
-        final loadedBatch = batchId == null
-            ? null
-            : loaded.batches.where((batch) => batch.id == batchId).firstOrNull;
-        final isCurrent = expectedBatchQuantity == null ||
-            loadedBatch?.availableDoses == expectedBatchQuantity;
-        if (isCurrent && expectedBatchQuantity != null) {
-          setState(() => _details = Future.value(loaded));
-          return;
-        }
-        if (isCurrent) setState(() => _details = Future.value(loaded));
-      } catch (_) {
-        if (attempt == delays.length - 1) return;
-      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            UserFacingError.message(
+              error,
+              fallback:
+                  'Stock was saved, but the latest stock data could not be loaded.',
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -294,8 +301,8 @@ class _VaccineInventoryDetailsScreenState
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const AppLoadingView(
-            title: 'Loading stock details',
-            message: 'Retrieving batches and transaction history.',
+            title: 'Loading vaccine inventory',
+            message: 'Retrieving the latest vaccine inventory data.',
           );
         }
 
@@ -303,7 +310,7 @@ class _VaccineInventoryDetailsScreenState
           return _DetailsError(
             message:
                 snapshot.error?.toString() ?? 'Unable to load stock details.',
-            onRetry: () => setState(_reload),
+            onRetry: _reload,
           );
         }
 
@@ -323,22 +330,10 @@ class _VaccineInventoryDetailsScreenState
             const SizedBox(height: 10),
             _StockActions(
               onReceive: () => _openAction(InventoryStockAction.receive, data),
-              onAdjust:
-                  data.batches.any(
-                    (batch) =>
-                        batch.canBeUsed &&
-                        batch.statusAsOf(DateTime.now()) !=
-                            VaccineBatchStatus.expired,
-                  )
+              onAdjust: data.inventory.isAvailable
                   ? () => _openAction(InventoryStockAction.adjust, data)
                   : null,
-              onWastage:
-                  data.batches.any(
-                    (batch) =>
-                        batch.canBeUsed &&
-                        batch.statusAsOf(DateTime.now()) !=
-                            VaccineBatchStatus.expired,
-                  )
+              onWastage: data.inventory.isAvailable
                   ? () => _openAction(InventoryStockAction.wastage, data)
                   : null,
             ),
@@ -363,6 +358,16 @@ class _VaccineInventoryDetailsScreenState
                       : () => _reviewBatch(batch),
                 ),
               ),
+            if (_loadingBatches)
+              const Center(child: CircularProgressIndicator())
+            else if (data.hasMoreBatches)
+              OutlinedButton.icon(
+                onPressed: () => _loadMoreBatches(data),
+                icon: const Icon(Icons.expand_more_rounded),
+                label: const Text('Load 10 more batches'),
+              )
+            else if (data.batches.isNotEmpty)
+              const Center(child: Text('All batches are loaded.')),
             const SizedBox(height: 18),
             const _SectionTitle(
               title: 'Transaction History',
@@ -378,6 +383,16 @@ class _VaccineInventoryDetailsScreenState
                   batches: data.batches,
                 ),
               ),
+            if (_loadingTransactions)
+              const Center(child: CircularProgressIndicator())
+            else if (data.hasMoreTransactions)
+              OutlinedButton.icon(
+                onPressed: () => _loadMoreTransactions(data),
+                icon: const Icon(Icons.expand_more_rounded),
+                label: const Text('Load 10 more transactions'),
+              )
+            else if (data.transactions.isNotEmpty)
+              const Center(child: Text('All transactions are loaded.')),
           ],
         );
       },
@@ -389,12 +404,43 @@ class _InventoryDetailsData {
   final VaccineInventory inventory;
   final List<VaccineBatch> batches;
   final List<InventoryTransaction> transactions;
+  final bool hasMoreBatches;
+  final int nextBatchOffset;
+  final bool hasMoreTransactions;
+  final int nextTransactionOffset;
 
   const _InventoryDetailsData({
     required this.inventory,
     required this.batches,
     required this.transactions,
+    required this.hasMoreBatches,
+    required this.nextBatchOffset,
+    required this.hasMoreTransactions,
+    required this.nextTransactionOffset,
   });
+
+  _InventoryDetailsData copyWithBatchPage(InventoryPage<VaccineBatch> page) =>
+      _InventoryDetailsData(
+        inventory: inventory,
+        batches: [...batches, ...page.items],
+        transactions: transactions,
+        hasMoreBatches: page.hasMore,
+        nextBatchOffset: page.nextOffset,
+        hasMoreTransactions: hasMoreTransactions,
+        nextTransactionOffset: nextTransactionOffset,
+      );
+
+  _InventoryDetailsData copyWithTransactionPage(
+    InventoryPage<InventoryTransaction> page,
+  ) => _InventoryDetailsData(
+    inventory: inventory,
+    batches: batches,
+    transactions: [...transactions, ...page.items],
+    hasMoreBatches: hasMoreBatches,
+    nextBatchOffset: nextBatchOffset,
+    hasMoreTransactions: page.hasMore,
+    nextTransactionOffset: page.nextOffset,
+  );
 }
 
 class _StockSummary extends StatelessWidget {
@@ -866,7 +912,7 @@ class _EmptyCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
-      color: Colors.grey.shade100,
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(16),
     ),
     child: Text(text),

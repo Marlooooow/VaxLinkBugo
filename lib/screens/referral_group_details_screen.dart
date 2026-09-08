@@ -5,6 +5,7 @@ import '../models/external_vaccination_visit.dart';
 import '../models/referral.dart';
 import '../models/referral_verification_result.dart';
 import '../repositories/referral_repository.dart';
+import '../repositories/demo_repository.dart';
 import '../services/mock_identifier_generator.dart';
 import '../utils/user_facing_error.dart';
 import 'referral_details_screen.dart';
@@ -151,15 +152,20 @@ class _ReferralGroupDetailsScreenState
     setState(() => _saving = true);
     try {
       final now = DateTime.now();
-      final visitIdentity = MockIdentifierGenerator.next(prefix: 'EV');
+      final useLocalIds = widget.repository is DemoRepository;
+      final visitIdentity = useLocalIds
+          ? MockIdentifierGenerator.next(prefix: 'EV')
+          : null;
       final records = selected.map((referral) {
-        final recordIdentity = MockIdentifierGenerator.next(prefix: 'VR');
+        final recordIdentity = useLocalIds
+            ? MockIdentifierGenerator.next(prefix: 'VR')
+            : null;
         return ExternalVaccinationRecord(
-          recordId: recordIdentity.id,
-          recordCode: recordIdentity.code,
+          recordId: recordIdentity?.id ?? '',
+          recordCode: recordIdentity?.code ?? '',
           referralId: referral.referralId,
-          externalVisitId: visitIdentity.id,
-          externalVisitCode: visitIdentity.code,
+          externalVisitId: visitIdentity?.id ?? '',
+          externalVisitCode: visitIdentity?.code ?? '',
           childId: referral.childId,
           vaccineId: referral.vaccineId,
           vaccineAdministered: referral.vaccineName,
@@ -323,7 +329,7 @@ class _ReferralGroupDetailsScreenState
     final primary = Theme.of(context).colorScheme.primary;
     final pending = _referrals.where((item) => item.isPending).toList();
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Text(

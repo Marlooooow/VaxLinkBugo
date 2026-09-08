@@ -28,9 +28,15 @@ class _EarlierAppointmentOffersScreenState
     extends State<EarlierAppointmentOffersScreen> {
   late final AppointmentRepository _repository;
   late Future<List<AppointmentSlotOffer>> _offers;
+  final List<AppointmentSlotOffer> _loadedOffers = [];
   final Set<String> _responding = {};
   AppointmentSlotOfferStatus? _filter = AppointmentSlotOfferStatus.pending;
   String? _focusedId;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  int _nextOffset = 0;
+  int _totalCount = 0;
+  int _pendingCount = 0;
   @override
   void initState() {
     super.initState();
@@ -42,8 +48,38 @@ class _EarlierAppointmentOffersScreenState
 
   void _reload() {
     _offers = widget.healthWorkerMode
-        ? _repository.getFacilitySlotOffers()
+        ? _loadOfferPage(reset: true)
         : _repository.getGuardianSlotOffers(widget.guardianId!);
+  }
+
+  Future<List<AppointmentSlotOffer>> _loadOfferPage({
+    required bool reset,
+  }) async {
+    final page = await _repository.getFacilitySlotOffersPage(
+      status: _focusedId == null ? _filter : null,
+      initialOfferId: _focusedId,
+      limit: 20,
+      offset: reset ? 0 : _nextOffset,
+    );
+    if (reset) _loadedOffers.clear();
+    final ids = _loadedOffers.map((offer) => offer.id).toSet();
+    _loadedOffers.addAll(page.items.where((offer) => ids.add(offer.id)));
+    _hasMore = page.hasMore;
+    _nextOffset = page.nextOffset;
+    _totalCount = page.totalCount;
+    _pendingCount = page.pendingCount;
+    return List.unmodifiable(_loadedOffers);
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || !widget.healthWorkerMode) return;
+    setState(() => _loadingMore = true);
+    try {
+      final offers = await _loadOfferPage(reset: false);
+      if (mounted) setState(() => _offers = Future.value(offers));
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 
   Future<void> _refresh() async {
@@ -174,7 +210,9 @@ class _EarlierAppointmentOffersScreenState
                       )
                       .toList()
                     ..sort((a, b) => a.expiresAt.compareTo(b.expiresAt));
-              final pending = all
+              final pending = widget.healthWorkerMode
+                  ? _pendingCount
+                  : all
                   .where((o) => o.status == AppointmentSlotOfferStatus.pending)
                   .length;
               return RefreshIndicator(
@@ -208,8 +246,10 @@ class _EarlierAppointmentOffersScreenState
                                 status == null ? 'All' : _status(status),
                               ),
                               selected: _filter == status,
-                              onSelected: (_) =>
-                                  setState(() => _filter = status),
+                              onSelected: (_) {
+                                setState(() => _filter = status);
+                                if (widget.healthWorkerMode) _refresh();
+                              },
                             ),
                         ],
                       ),
@@ -217,10 +257,13 @@ class _EarlierAppointmentOffersScreenState
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton(
-                          onPressed: () => setState(() {
-                            _focusedId = null;
-                            _filter = null;
-                          }),
+                          onPressed: () {
+                            setState(() {
+                              _focusedId = null;
+                              _filter = null;
+                            });
+                            _refresh();
+                          },
                           child: const Text('View all offers'),
                         ),
                       ),
@@ -359,6 +402,23 @@ class _EarlierAppointmentOffersScreenState
                           ],
                         ),
                       ),
+                    if (widget.healthWorkerMode && visible.isNotEmpty) ...[
+                      Text(
+                        'Showing ${visible.length} of $_totalCount offers',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 10),
+                      if (_loadingMore)
+                        const Center(child: CircularProgressIndicator())
+                      else if (_hasMore)
+                        OutlinedButton.icon(
+                          onPressed: _loadMore,
+                          icon: const Icon(Icons.expand_more_rounded),
+                          label: const Text('Load 20 more'),
+                        )
+                      else
+                        const Center(child: Text('All offers are loaded.')),
+                    ],
                   ],
                 ),
               );

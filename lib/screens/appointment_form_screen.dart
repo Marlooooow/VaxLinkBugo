@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/vaccination_appointment.dart';
 import '../models/vaccination_reminder.dart';
 import '../repositories/appointment_repository.dart';
+import '../repositories/repository_registry.dart';
 import '../services/mock_scenario_clock.dart';
 import '../services/session_context.dart';
 
@@ -38,6 +39,13 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   bool get _isReschedule => widget.existingAppointment != null;
   DateTime get _pnipDueDate =>
       widget.reminder?.dueDate ?? widget.existingAppointment!.pnipDueDate;
+  DateTime get _today {
+    if (!RepositoryRegistry.instance.environment.isLive) {
+      return MockScenarioClock.today;
+    }
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
 
   @override
   void dispose() {
@@ -46,9 +54,7 @@ class _AppointmentFormScreenState extends State<AppointmentFormScreen> {
   }
 
   Future<void> _selectDate() async {
-    final first = MockScenarioClock.today.isAfter(_pnipDueDate)
-        ? MockScenarioClock.today
-        : _pnipDueDate;
+    final first = _today.isAfter(_pnipDueDate) ? _today : _pnipDueDate;
     final selected = await showDatePicker(
       context: context,
       initialDate: _appointmentDate ?? first,

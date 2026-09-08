@@ -289,6 +289,7 @@ void main() {
           fullName: 'After',
           sex: 'Female',
           phoneNumber: null,
+          emailAddress: null,
           address: 'Bugo',
           hasUserAccount: true,
           reason: 'Test reason',

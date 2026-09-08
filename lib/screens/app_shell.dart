@@ -61,9 +61,11 @@ class _AppShellState extends State<AppShell> {
     _selectTab(tab);
   }
 
-  void _openWorkerFamilies(Set<String> guardianIds) {
+  void _openWorkerFamilies(Set<String>? guardianIds) {
     setState(() {
-      _familyGuardianFilter = Set.unmodifiable(guardianIds);
+      _familyGuardianFilter = guardianIds == null
+          ? null
+          : Set.unmodifiable(guardianIds);
       _familiesRevision++;
       _selected = 1;
       _visited.add(1);

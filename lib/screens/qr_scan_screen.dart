@@ -19,6 +19,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
   final MobileScannerController _cameraController = MobileScannerController(
     autoStart: false,
   );
+
   final bool _liveMode =
       RepositoryRegistry.instance.qrRepository is LiveQrRepository;
 
@@ -37,45 +38,108 @@ class _QrScanScreenState extends State<QrScanScreen> {
     super.dispose();
   }
 
+  /// Shows a specific modal when the QR/Child ID was valid enough
+  /// to perform a lookup, but no matching child was found.
+  Future<void> _showChildNotFoundModal() async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(context).colorScheme;
+
+        return AlertDialog(
+          icon: Icon(
+            Icons.person_search_outlined,
+            size: 46,
+            color: colorScheme.primary,
+          ),
+          title: const Text(
+            'Child Not Found',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          content: const Text(
+            'We couldn’t find a child record matching this ID or QR code.\n\n'
+            'Please check the identifier and try again.',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Try Again'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _handleDetectedCode(String code) async {
     if (_isScanning) return;
+
     setState(() => _isScanning = true);
     await _cameraController.stop();
+
     try {
       final result = await _qrRepository.findByIdentifier(code);
+
       if (!mounted) return;
+
       if (result == null) {
         setState(() => _isScanning = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No child matched this QR code.')),
-        );
+
+        await _showChildNotFoundModal();
+
+        if (!mounted) return;
+
         await _cameraController.start();
+        if (mounted) {
+          setState(() => _cameraStarted = true);
+        }
+
         return;
       }
+
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => QrScanResultScreen(result: result)),
+        MaterialPageRoute(
+          builder: (_) => QrScanResultScreen(result: result),
+        ),
       );
     } catch (error) {
       if (!mounted) return;
+
       setState(() => _isScanning = false);
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('QR lookup failed: $error')),
+        SnackBar(
+          content: Text('QR lookup failed: $error'),
+        ),
       );
+
       await _cameraController.start();
+
+      if (mounted) {
+        setState(() => _cameraStarted = true);
+      }
     }
   }
 
   Future<void> _retryCamera() async {
     try {
       await _cameraController.start();
-      if (mounted) setState(() => _cameraStarted = true);
+
+      if (mounted) {
+        setState(() => _cameraStarted = true);
+      }
     } catch (error) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text(
-            'Camera access is unavailable. Allow camera permission and try again.',
+            'Camera access is unavailable. '
+            'Allow camera permission and try again.',
           ),
         ),
       );
@@ -84,8 +148,10 @@ class _QrScanScreenState extends State<QrScanScreen> {
 
   Future<void> _startCamera() async {
     if (_cameraStarted || _isScanning) return;
+
     if (_browserNeedsHttps) {
       if (!mounted) return;
+
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
@@ -102,8 +168,10 @@ class _QrScanScreenState extends State<QrScanScreen> {
           ],
         ),
       );
+
       return;
     }
+
     await _retryCamera();
   }
 
@@ -112,6 +180,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
       await _startCamera();
       return;
     }
+
     if (_isScanning) return;
 
     setState(() {
@@ -128,91 +197,70 @@ class _QrScanScreenState extends State<QrScanScreen> {
       });
 
       if (result == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('QR code could not be recognized.')),
-        );
+        await _showChildNotFoundModal();
         return;
       }
 
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => QrScanResultScreen(result: result)),
+        MaterialPageRoute(
+          builder: (_) => QrScanResultScreen(result: result),
+        ),
       );
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
 
       setState(() {
         _isScanning = false;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Scan error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Scan error: $error'),
+        ),
+      );
     }
   }
 
   Future<void> _enterChildId() async {
-    final controller = TextEditingController();
-    final formKey = GlobalKey<FormState>();
     final identifier = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text(
-          'Enter Child ID',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Child ID or QR identifier',
-              hintText: 'CH-2026-000101',
-            ),
-            textCapitalization: TextCapitalization.characters,
-            validator: (value) => value == null || value.trim().isEmpty
-                ? 'Enter a child identifier.'
-                : null,
-            onFieldSubmitted: (_) {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, controller.text.trim());
-              }
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(dialogContext, controller.text.trim());
-              }
-            },
-            child: const Text('Find Child'),
-          ),
-        ],
-      ),
+      builder: (_) => const _ChildIdDialog(),
     );
-    controller.dispose();
+
     if (identifier == null || !mounted) return;
+
     setState(() => _isScanning = true);
-    final result = await _qrRepository.findByIdentifier(identifier);
-    if (!mounted) return;
-    setState(() => _isScanning = false);
-    if (result == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No child matched that identifier.')),
+
+    try {
+      final result = await _qrRepository.findByIdentifier(identifier);
+
+      if (!mounted) return;
+
+      setState(() => _isScanning = false);
+
+      if (result == null) {
+        await _showChildNotFoundModal();
+        return;
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => QrScanResultScreen(result: result),
+        ),
       );
-      return;
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() => _isScanning = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Child lookup failed: $error'),
+        ),
+      );
     }
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => QrScanResultScreen(result: result)),
-    );
   }
 
   @override
@@ -226,10 +274,6 @@ class _QrScanScreenState extends State<QrScanScreen> {
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
-
-      // IMPORTANT:
-      // Using SingleChildScrollView prevents the lower
-      // buttons from being covered or squeezed by the layout.
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
@@ -259,7 +303,10 @@ class _QrScanScreenState extends State<QrScanScreen> {
                         'Scan the child QR to retrieve the child record. '
                         'The QR is an identifier only and does not determine '
                         'the vaccination schedule.',
-                        style: TextStyle(fontSize: 12.5, height: 1.4),
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                        ),
                       ),
                     ),
                   ],
@@ -344,6 +391,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                                 .map((barcode) => barcode.rawValue)
                                 .whereType<String>()
                                 .toList(growable: false);
+
                             if (codes.isNotEmpty &&
                                 codes.first.trim().isNotEmpty) {
                               _handleDetectedCode(codes.first);
@@ -397,7 +445,8 @@ class _QrScanScreenState extends State<QrScanScreen> {
                   ),
                 ),
 
-              if (_liveMode && !_cameraStarted) const SizedBox(height: 12),
+              if (_liveMode && !_cameraStarted)
+                const SizedBox(height: 12),
 
               Text(
                 _isScanning ? 'Reading QR code...' : 'Ready to scan',
@@ -413,8 +462,8 @@ class _QrScanScreenState extends State<QrScanScreen> {
                 _isScanning
                     ? 'Retrieving the child record.'
                     : _liveMode
-                    ? 'Point the camera at the child QR code.'
-                    : 'Tap the button below to simulate a QR scan.',
+                        ? 'Point the camera at the child QR code.'
+                        : 'Tap the button below to simulate a QR scan.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -435,11 +484,14 @@ class _QrScanScreenState extends State<QrScanScreen> {
                           ? Icons.hourglass_top_rounded
                           : Icons.qr_code_scanner_rounded,
                     ),
-                    label: Text(_isScanning ? 'Scanning...' : 'Scan Child QR'),
+                    label: Text(
+                      _isScanning ? 'Scanning...' : 'Scan Child QR',
+                    ),
                   ),
                 ),
 
               const SizedBox(height: 12),
+
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -457,7 +509,9 @@ class _QrScanScreenState extends State<QrScanScreen> {
                   'Demo mode: QR scanning is simulated',
                   style: TextStyle(
                     fontSize: 11,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurfaceVariant,
                   ),
                 ),
             ],
@@ -467,4 +521,69 @@ class _QrScanScreenState extends State<QrScanScreen> {
     );
   }
 }
-      
+
+class _ChildIdDialog extends StatefulWidget {
+  const _ChildIdDialog();
+
+  @override
+  State<_ChildIdDialog> createState() => _ChildIdDialogState();
+}
+
+class _ChildIdDialogState extends State<_ChildIdDialog> {
+  final TextEditingController _controller = TextEditingController();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    Navigator.of(context).pop(_controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text(
+        'Enter Child ID',
+        style: TextStyle(fontWeight: FontWeight.w800),
+      ),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Child ID or QR identifier',
+            hintText: 'CH-2026-000101',
+          ),
+          textCapitalization: TextCapitalization.characters,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Enter a child identifier.';
+            }
+
+            return null;
+          },
+          onFieldSubmitted: (_) => _submit(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Find Child'),
+        ),
+      ],
+    );
+  }
+}

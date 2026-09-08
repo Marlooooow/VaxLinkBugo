@@ -103,7 +103,9 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFE7EDF4)),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                 ),
                 child: Column(
                   children: [
@@ -501,7 +503,9 @@ class _InformationCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE7EDF4)),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant,
+        ),
       ),
       child: Material(
         color: Colors.transparent,

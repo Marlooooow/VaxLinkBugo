@@ -417,5 +417,10 @@ enabled = true
 [functions.activate-guardian-access]
 verify_jwt = false
 
+# Staff activation also occurs before sign-in. The administrator-issued,
+# one-time high-entropy code is verified by the server function.
+[functions.activate-staff-access]
+verify_jwt = false
+
 [functions.send-reminder-sms]
 verify_jwt = true

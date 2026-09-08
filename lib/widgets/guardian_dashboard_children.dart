@@ -261,7 +261,7 @@ class _GuardianDashboardChildrenState extends State<GuardianDashboardChildren> {
                         'Recorded doses',
                         progress.completed,
                         Icons.verified_outlined,
-                        const Color(0xFF087F83),
+                        Theme.of(context).colorScheme.primary,
                         actionLabel: 'View history',
                         onTap: () => _openChild(
                           selected.$1,

@@ -66,7 +66,11 @@ class SupabaseReminderRepository implements ReminderRepository {
     int limit = 10,
     int offset = 0,
   }) async {
-    final safeLimit = limit < 1 ? 1 : limit > 100 ? 100 : limit;
+    final safeLimit = limit < 1
+        ? 1
+        : limit > 100
+        ? 100
+        : limit;
     final safeOffset = offset < 0 ? 0 : offset;
     final payload = Map<String, dynamic>.from(
       await _client.rpc(
@@ -81,8 +85,7 @@ class SupabaseReminderRepository implements ReminderRepository {
     return ReminderPage(
       items: items,
       hasMore: payload['has_more'] as bool? ?? false,
-      nextOffset:
-          (payload['next_offset'] as num?)?.toInt() ?? safeOffset,
+      nextOffset: (payload['next_offset'] as num?)?.toInt() ?? safeOffset,
     );
   }
 
@@ -95,6 +98,20 @@ class SupabaseReminderRepository implements ReminderRepository {
       dueToday: (row['due_today'] as num?)?.toInt() ?? 0,
       overdue: (row['overdue'] as num?)?.toInt() ?? 0,
       upcoming: (row['upcoming'] as num?)?.toInt() ?? 0,
+      guardianIds: (row['guardian_ids'] as List? ?? const [])
+          .map((value) => value.toString())
+          .toList(growable: false),
+      vaccineCounts: (row['vaccine_counts'] as List? ?? const [])
+          .map((value) {
+            final item = Map<String, dynamic>.from(value as Map);
+            return ReminderVaccineCount(
+              vaccineId: item['vaccine_id'] as String,
+              vaccineName: item['vaccine_name'] as String,
+              dueToday: (item['due_today'] as num?)?.toInt() ?? 0,
+              overdue: (item['overdue'] as num?)?.toInt() ?? 0,
+            );
+          })
+          .toList(growable: false),
     );
   }
 

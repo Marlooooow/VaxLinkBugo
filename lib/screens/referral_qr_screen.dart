@@ -9,7 +9,17 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:ui' as ui;
 
 import '../models/referral.dart';
-import '../services/mock_identifier_generator.dart';
+
+String _verificationToken(List<Referral> referrals) {
+  final token = referrals.first.verificationToken?.trim() ?? '';
+  if (token.isEmpty) {
+    throw StateError(
+      'This referral no longer contains its one-time QR verification token. '
+      'Generate a new referral before printing or sharing a QR code.',
+    );
+  }
+  return token;
+}
 
 class ReferralQrScreen extends StatefulWidget {
   final List<Referral> referrals;
@@ -63,8 +73,7 @@ class _QrDisplayView extends StatelessWidget {
       'version': 1,
       'referral_group_id': groupId,
       'referral_group_code': referrals.first.referralGroupCode,
-      'verification_token': referrals.first.verificationToken ??
-          MockIdentifierGenerator.verificationTokenFor(groupId),
+      'verification_token': _verificationToken(referrals),
     };
 
     return jsonEncode(data);
@@ -86,6 +95,27 @@ class _QrDisplayView extends StatelessWidget {
       );
     }
 
+    if ((referrals.first.verificationToken?.trim() ?? '').isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Referral QR',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'The secure QR token is available only when the referral is '
+              'created. Generate a new referral to display or print its QR code.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     final child = referrals.first;
 
     final vaccineNames = referrals
@@ -99,7 +129,7 @@ class _QrDisplayView extends StatelessWidget {
         .join(', ');
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -294,9 +324,7 @@ class _PrintableReferralViewState extends State<_PrintableReferralView> {
       'version': 1,
       'referral_group_id': groupId,
       'referral_group_code': widget.referrals.first.referralGroupCode,
-      'verification_token': MockIdentifierGenerator.verificationTokenFor(
-        groupId,
-      ),
+      'verification_token': _verificationToken(widget.referrals),
     };
 
     return jsonEncode(data);

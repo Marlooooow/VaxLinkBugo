@@ -5,6 +5,7 @@ import '../models/guardian_correction.dart';
 import '../models/child_correction.dart';
 import '../models/guardian_invitation.dart';
 import '../models/child_link_request.dart';
+import '../models/vaccination_schedule_state.dart';
 
 class RegisteredFamily {
   final GuardianProfile guardian;
@@ -20,6 +21,32 @@ class RegisteredFamily {
   });
 }
 
+class RegisteredFamilySummary {
+  final RegisteredFamily family;
+  final Map<String, VaccinationScheduleState> childStates;
+
+  const RegisteredFamilySummary({
+    required this.family,
+    required this.childStates,
+  });
+}
+
+class RegisteredFamilyPage {
+  final List<RegisteredFamilySummary> items;
+  final int totalCount;
+  final bool hasMore;
+  final DateTime? nextCreatedAt;
+  final String? nextGuardianId;
+
+  const RegisteredFamilyPage({
+    required this.items,
+    required this.totalCount,
+    required this.hasMore,
+    required this.nextCreatedAt,
+    required this.nextGuardianId,
+  });
+}
+
 abstract class ChildRepository {
   Future<List<ChildProfile>> getChildrenForGuardian(String guardianId);
 
@@ -30,6 +57,17 @@ abstract class ChildRepository {
   );
 
   Future<List<RegisteredFamily>> getHealthWorkerRegisteredFamilies();
+
+  Future<RegisteredFamilyPage> getHealthWorkerRegisteredFamiliesPage({
+    String search = '',
+    VaccinationScheduleState? status,
+    Set<String>? guardianIds,
+    int pageSize = 20,
+    DateTime? cursorCreatedAt,
+    String? cursorGuardianId,
+  });
+
+  Future<RegisteredFamily?> getHealthWorkerRegisteredFamily(String guardianId);
 
   Future<GuardianProfile?> findGuardianById(String guardianId);
 
@@ -42,6 +80,13 @@ abstract class ChildRepository {
   );
 
   Future<List<ChildLinkRequest>> getPendingChildLinkRequests();
+
+  Future<ChildLinkRequestPage> getPendingChildLinkRequestsPage({
+    String query = '',
+    String? initialRequestId,
+    int limit = 20,
+    int offset = 0,
+  });
 
   Future<ChildLinkRequest> submitChildLinkRequest(
     SubmitChildLinkRequest request,
@@ -59,9 +104,4 @@ abstract class ChildRepository {
   );
 
   Future<ChildCorrectionResult> correctChild(ChildCorrectionRequest request);
-
-  Future<GuardianProfile> activateGuardianInvitation({
-    required String invitationCode,
-    required String userId,
-  });
 }

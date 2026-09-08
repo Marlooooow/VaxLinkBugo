@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../models/child_profile.dart';
+import '../models/child/child_profile.dart';
 import '../models/qr_scan_result.dart';
 import 'qr_repository.dart';
 import 'mock_child_repository.dart';

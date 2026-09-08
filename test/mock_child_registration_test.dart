@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/guardian_registration.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/guardian_profile.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/guardian_invitation.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_registration.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_invitation.dart';
 import 'package:qr_code_based_pediatric_vaccination/repositories/mock_child_repository.dart';
 import 'package:qr_code_based_pediatric_vaccination/repositories/mock_vaccination_repository.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/vaccination_schedule_state.dart';
@@ -44,7 +44,7 @@ void main() {
     expect(result.child.qrIdentifier, startsWith('QR-CH-'));
     expect(result.link.relationship, 'Aunt');
     expect(result.link.authorizationConfirmed, isTrue);
-    expect(result.children, hasLength(2));
+    expect(result.children, hasLength(2));  
   });
 
   test('rejects a future child birth date', () async {

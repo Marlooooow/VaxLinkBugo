@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/referral_group.dart';
 import '../repositories/referral_repository.dart';
+import '../utils/user_facing_error.dart';
+import '../widgets/worker_app_bar_actions.dart';
 import 'referral_group_details_screen.dart';
 import '../widgets/app_loading.dart';
 
@@ -15,41 +19,120 @@ class ReferralHistoryScreen extends StatefulWidget {
 }
 
 class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
+  static const _pageSize = 20;
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+  Timer? _searchDebounce;
   ReferralGroupStatus? _filter;
   bool _overdueOnly = false;
   List<ReferralGroup> _groups = [];
-  List<ReferralGroup> _summaryGroups = [];
+  ReferralGroupSummaryCounts _summaryCounts =
+      const ReferralGroupSummaryCounts();
+  Object? _error;
+  int _totalCount = 0;
+  int _nextOffset = 0;
+  int _requestVersion = 0;
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _scrollController.addListener(_loadWhenNearBottom);
+    _loadFirstPage();
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    final groups = await widget.repository.getReferralGroups(
+  void _loadWhenNearBottom() {
+    if (_scrollController.position.extentAfter < 450) _loadNextPage();
+  }
+
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 350),
+      _loadFirstPage,
+    );
+    setState(() {});
+  }
+
+  Future<ReferralGroupPage> _fetchPage(int offset) async {
+    return widget.repository.getReferralGroupsPage(
       query: _searchController.text,
       status: _filter,
       overdueOnly: _overdueOnly,
+      limit: _pageSize,
+      offset: offset,
     );
-    final summaryGroups = await widget.repository.getReferralGroups(
-      limit: 1000,
-    );
-    if (!mounted) return;
+  }
+
+  Future<void> _loadFirstPage() async {
+    final version = ++_requestVersion;
     setState(() {
-      _groups = groups;
-      _summaryGroups = summaryGroups;
-      _loading = false;
+      _loading = true;
+      _loadingMore = false;
+      _error = null;
+      _groups = [];
+      _totalCount = 0;
+      _nextOffset = 0;
+      _hasMore = false;
     });
+    try {
+      final page = await _fetchPage(0);
+      if (!mounted || version != _requestVersion) return;
+      setState(() {
+        _groups = page.items;
+        _summaryCounts = page.summary;
+        _totalCount = page.totalCount;
+        _nextOffset = page.nextOffset;
+        _hasMore = page.hasMore;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted || version != _requestVersion) return;
+      setState(() {
+        _error = error;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadNextPage() async {
+    if (_loading || _loadingMore || !_hasMore) return;
+    final version = _requestVersion;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await _fetchPage(_nextOffset);
+      if (!mounted || version != _requestVersion) return;
+      setState(() {
+        final existing = _groups
+            .map((group) => group.referralGroupId)
+            .toSet();
+        _groups.addAll(
+          page.items.where((group) => existing.add(group.referralGroupId)),
+        );
+        _summaryCounts = page.summary;
+        _totalCount = page.totalCount;
+        _nextOffset = page.nextOffset;
+        _hasMore = page.hasMore;
+        _error = null;
+        _loadingMore = false;
+      });
+    } catch (error) {
+      if (!mounted || version != _requestVersion) return;
+      setState(() {
+        _error = error;
+        _loadingMore = false;
+      });
+    }
   }
 
   Future<void> _open(ReferralGroup group) async {
@@ -62,7 +145,7 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
         ),
       ),
     );
-    await _load();
+    await _loadFirstPage();
   }
 
   String _date(DateTime value) {
@@ -86,13 +169,14 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Text(
           'Referral History',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
+        actions: const [WorkerAppBarActions()],
       ),
       body: SafeArea(
         child: Column(
@@ -107,7 +191,7 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
                   TextField(
                     controller: _searchController,
                     textInputAction: TextInputAction.search,
-                    onChanged: (_) => _load(),
+                    onChanged: (_) => _onSearchChanged(),
                     decoration: InputDecoration(
                       hintText: 'Search child, referral ID, or vaccine',
                       prefixIcon: const Icon(Icons.search_rounded),
@@ -116,7 +200,7 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
                           : IconButton(
                               onPressed: () {
                                 _searchController.clear();
-                                _load();
+                                _loadFirstPage();
                               },
                               icon: const Icon(Icons.close_rounded),
                             ),
@@ -141,23 +225,7 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
                 ],
               ),
             ),
-            Expanded(
-              child: _loading
-                  ? const AppLoadingView(
-                      title: 'Loading referral history',
-                      message: 'Retrieving saved referral records.',
-                    )
-                  : _groups.isEmpty
-                  ? _emptyState()
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
-                        itemCount: _groups.length,
-                        itemBuilder: (_, index) => _groupCard(_groups[index]),
-                      ),
-                    ),
-            ),
+            Expanded(child: _results()),
           ],
         ),
       ),
@@ -166,13 +234,13 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
 
   Widget _filterChip(String label, ReferralGroupStatus? value) => ChoiceChip(
     label: Text(label),
-    selected: _filter == value,
+    selected: _filter == value && (value != null || !_overdueOnly),
     onSelected: (_) {
       setState(() {
         _filter = value;
         _overdueOnly = false;
       });
-      _load();
+      _loadFirstPage();
     },
   );
 
@@ -184,61 +252,199 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
         _filter = null;
         _overdueOnly = true;
       });
-      _load();
+      _loadFirstPage();
     },
   );
 
   Widget _summary() {
-    final pending = _summaryGroups
-        .where((group) => group.status == ReferralGroupStatus.pending)
-        .length;
-    final partial = _summaryGroups
-        .where(
-          (group) => group.status == ReferralGroupStatus.partiallyCompleted,
-        )
-        .length;
-    final completed = _summaryGroups
-        .where((group) => group.status == ReferralGroupStatus.completed)
-        .length;
-    final overdue = _summaryGroups
-        .where((group) => group.isOverdueOn(DateTime.now()))
-        .length;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _summaryCard('Pending', pending, Colors.blue),
-          _summaryCard('Partial', partial, Colors.orange),
-          _summaryCard('Completed', completed, Colors.green),
-          _summaryCard('Overdue', overdue, Colors.red),
+          _summaryCard(
+            'Pending',
+            _summaryCounts.pending,
+            Colors.blue,
+            selected: _filter == ReferralGroupStatus.pending && !_overdueOnly,
+            onTap: () => _selectSummary(ReferralGroupStatus.pending),
+          ),
+          _summaryCard(
+            'Partial',
+            _summaryCounts.partiallyCompleted,
+            Colors.orange,
+            selected:
+                _filter == ReferralGroupStatus.partiallyCompleted &&
+                !_overdueOnly,
+            onTap: () => _selectSummary(
+              ReferralGroupStatus.partiallyCompleted,
+            ),
+          ),
+          _summaryCard(
+            'Completed',
+            _summaryCounts.completed,
+            Colors.green,
+            selected:
+                _filter == ReferralGroupStatus.completed && !_overdueOnly,
+            onTap: () => _selectSummary(ReferralGroupStatus.completed),
+          ),
+          _summaryCard(
+            'Overdue',
+            _summaryCounts.overdue,
+            Colors.red,
+            selected: _overdueOnly,
+            onTap: () => _selectSummary(null, overdue: true),
+          ),
         ],
       ),
     );
   }
 
-  Widget _summaryCard(String label, int count, Color color) => Container(
+  void _selectSummary(ReferralGroupStatus? status, {bool overdue = false}) {
+    setState(() {
+      _filter = status;
+      _overdueOnly = overdue;
+    });
+    _loadFirstPage();
+  }
+
+  Widget _summaryCard(
+    String label,
+    int count,
+    Color color, {
+    required bool selected,
+    required VoidCallback onTap,
+  }) => Container(
     width: 105,
     margin: const EdgeInsets.only(right: 9),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.08),
+    child: Material(
+      color: color.withValues(alpha: selected ? 0.15 : 0.08),
       borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: color.withValues(alpha: 0.15)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$count',
-          style: TextStyle(
-            color: color,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: color.withValues(alpha: selected ? 0.70 : 0.15),
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$count',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(label, style: const TextStyle(fontSize: 11.5)),
+            ],
           ),
         ),
-        const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 11.5)),
-      ],
+      ),
+    ),
+  );
+
+  Widget _results() {
+    if (_loading && _groups.isEmpty) {
+      return const AppLoadingView(
+        title: 'Loading referral history',
+        message: 'Fetching the first 20 referral groups.',
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadFirstPage,
+      child: ListView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
+        children: [
+          if (_error != null && _groups.isEmpty)
+            _errorState()
+          else if (_groups.isEmpty)
+            _emptyState()
+          else ...[
+            Text(
+              'Showing ${_groups.length} of $_totalCount referral group${_totalCount == 1 ? '' : 's'}',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ..._groups.map(_groupCard),
+            _pageFooter(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _pageFooter() {
+    if (_loadingMore) {
+      return const Padding(
+        padding: EdgeInsets.all(18),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null) {
+      return TextButton.icon(
+        onPressed: _loadNextPage,
+        icon: const Icon(Icons.refresh_rounded),
+        label: const Text('Could not load more — try again'),
+      );
+    }
+    if (_hasMore) {
+      return OutlinedButton.icon(
+        onPressed: _loadNextPage,
+        icon: const Icon(Icons.expand_more_rounded),
+        label: const Text('Load 20 more'),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Text(
+        'All matching referrals are loaded.',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _errorState() => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(30),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off_rounded, size: 48),
+          const SizedBox(height: 12),
+          const Text(
+            'Referral history could not be loaded',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            UserFacingError.message(_error!),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _loadFirstPage,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try again'),
+          ),
+        ],
+      ),
     ),
   );
 

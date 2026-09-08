@@ -1,9 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/advisory_insight.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/advisory_insight.dart';
+
 import 'advisory_insight_repository.dart';
 
-class SupabaseAdvisoryInsightRepository implements AdvisoryInsightRepository {
+class SupabaseAdvisoryInsightRepository
+    implements AdvisoryInsightRepository, AdvisoryInsightGenerator {
   final SupabaseClient _client;
 
   SupabaseAdvisoryInsightRepository(this._client);
@@ -26,6 +28,44 @@ class SupabaseAdvisoryInsightRepository implements AdvisoryInsightRepository {
     return rows.map<AdvisoryInsight>(_fromRow).toList(growable: false);
   }
 
+  @override
+  Future<AdvisoryInsightPage> getFacilityInsightsPage({
+    AdvisoryInsightSeverity? severity,
+    AdvisoryInsightStatus? status,
+    String? insightId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    if (offset == 0) await _syncChildAdvisories();
+    final result = Map<String, dynamic>.from(
+      await _client.rpc(
+            'get_advisory_insight_page',
+            params: {
+              'p_severity': severity?.name,
+              'p_status': status == null ? null : _snake(status.name),
+              'p_insight_id': insightId,
+              'p_page_size': limit,
+              'p_page_offset': offset,
+            },
+          )
+          as Map,
+    );
+    final summary = Map<String, dynamic>.from(result['summary'] as Map? ?? {});
+    return AdvisoryInsightPage(
+      items: (result['items'] as List? ?? const [])
+          .map((row) => _fromRow(Map<String, dynamic>.from(row as Map)))
+          .toList(growable: false),
+      summary: AdvisoryInsightSummary(
+        high: (summary['high'] as num?)?.toInt() ?? 0,
+        medium: (summary['medium'] as num?)?.toInt() ?? 0,
+        newCount: (summary['new'] as num?)?.toInt() ?? 0,
+      ),
+      totalCount: (result['total_count'] as num?)?.toInt() ?? 0,
+      hasMore: result['has_more'] == true,
+      nextOffset: (result['next_offset'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   Future<void> _syncChildAdvisories() async {
     try {
       await _client.rpc('sync_child_advisory_insights');
@@ -34,6 +74,30 @@ class SupabaseAdvisoryInsightRepository implements AdvisoryInsightRepository {
       // or temporarily fails. Once the RPC is available, the next load will
       // retry it before reading the facility list.
       return;
+    }
+  }
+
+  @override
+  Future<int> generateFacilityInsights() async {
+    try {
+      final result = await _client.functions.invoke(
+        'generate-advisory-insights',
+        body: const <String, dynamic>{},
+      );
+      if (result.status < 200 || result.status >= 300 || result.data is! Map) {
+        throw StateError('The advisory service returned an invalid response.');
+      }
+      final generated = (result.data as Map)['generated'];
+      if (generated is! num) {
+        throw StateError('The advisory service did not confirm its results.');
+      }
+      return generated.toInt();
+    } on FunctionException catch (error) {
+      final details = error.details;
+      if (details is Map && details['error'] is String) {
+        throw StateError(details['error'] as String);
+      }
+      rethrow;
     }
   }
 

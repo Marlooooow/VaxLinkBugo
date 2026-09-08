@@ -10,6 +10,7 @@ class GuardianCorrectionRequest {
   final DateTime? birthDate;
   final String sex;
   final String? phoneNumber;
+  final String? emailAddress;
   final String address;
   final bool hasUserAccount;
   final String reason;
@@ -25,6 +26,7 @@ class GuardianCorrectionRequest {
     this.birthDate,
     required this.sex,
     required this.phoneNumber,
+    this.emailAddress,
     required this.address,
     required this.hasUserAccount,
     required this.reason,

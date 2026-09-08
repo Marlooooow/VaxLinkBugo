@@ -1,7 +1,7 @@
-import '../models/child_profile.dart';
-import '../models/external_vaccination_record.dart';
-import '../models/external_vaccination_correction.dart';
-import '../models/external_vaccination_visit.dart';
+import '../models/child/child_profile.dart';
+import '../models/external_vaccination/external_vaccination_record.dart';
+import '../models/external_vaccination/external_vaccination_correction.dart';
+import '../models/external_vaccination/external_vaccination_visit.dart';
 import '../models/referral.dart';
 import '../models/referral_group.dart';
 import '../models/referral_verification_result.dart';
@@ -59,6 +59,14 @@ class PendingLiveReferralRepository implements ReferralRepository {
       _pending();
   @override
   Future<List<ReferralGroup>> getReferralGroups({
+    String query = '',
+    ReferralGroupStatus? status,
+    bool overdueOnly = false,
+    int limit = 20,
+    int offset = 0,
+  }) async => _pending();
+  @override
+  Future<ReferralGroupPage> getReferralGroupsPage({
     String query = '',
     ReferralGroupStatus? status,
     bool overdueOnly = false,

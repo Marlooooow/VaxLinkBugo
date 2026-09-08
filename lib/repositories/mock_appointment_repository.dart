@@ -160,6 +160,56 @@ class MockAppointmentRepository implements AppointmentRepository {
       _sorted(_appointments);
 
   @override
+  Future<List<VaccinationAppointment>> getFacilityUpcomingAppointments({
+    int limit = 2,
+  }) async {
+    final today = MockScenarioClock.today;
+    return _sorted(_appointments)
+        .where(
+          (item) =>
+              !item.appointmentDate.isBefore(today) &&
+              {
+                VaccinationAppointmentStatus.scheduled,
+                VaccinationAppointmentStatus.confirmed,
+                VaccinationAppointmentStatus.checkedIn,
+              }.contains(item.status),
+        )
+        .take(limit)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<AppointmentPage> getFacilityAppointmentsPage({
+    String? initialAppointmentId,
+    String? waitlistVaccineId,
+    bool waitlistOnly = false,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final all = (await getFacilityAppointments())
+        .where((item) {
+          if (initialAppointmentId != null && item.id != initialAppointmentId) {
+            return false;
+          }
+          if (waitlistOnly &&
+              item.status != VaccinationAppointmentStatus.waitlisted) {
+            return false;
+          }
+          return waitlistVaccineId == null ||
+              (item.vaccineId == waitlistVaccineId &&
+                  item.status == VaccinationAppointmentStatus.waitlisted);
+        })
+        .toList(growable: false);
+    final items = all.skip(offset).take(limit).toList(growable: false);
+    return AppointmentPage(
+      items: items,
+      totalCount: all.length,
+      hasMore: offset + items.length < all.length,
+      nextOffset: offset + items.length,
+    );
+  }
+
+  @override
   Future<List<AppointmentSlotOffer>> getGuardianSlotOffers(
     String guardianId,
   ) async {
@@ -179,6 +229,32 @@ class MockAppointmentRepository implements AppointmentRepository {
     _expireOffers();
     _refreshOffers();
     return List.unmodifiable(_slotOffers);
+  }
+
+  @override
+  Future<AppointmentOfferPage> getFacilitySlotOffersPage({
+    AppointmentSlotOfferStatus? status,
+    String? initialOfferId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final all = await getFacilitySlotOffers();
+    final matching = all
+        .where((offer) {
+          if (initialOfferId != null) return offer.id == initialOfferId;
+          return status == null || offer.status == status;
+        })
+        .toList(growable: false);
+    final items = matching.skip(offset).take(limit).toList(growable: false);
+    return AppointmentOfferPage(
+      items: items,
+      totalCount: matching.length,
+      pendingCount: all
+          .where((offer) => offer.status == AppointmentSlotOfferStatus.pending)
+          .length,
+      hasMore: offset + items.length < matching.length,
+      nextOffset: offset + items.length,
+    );
   }
 
   @override

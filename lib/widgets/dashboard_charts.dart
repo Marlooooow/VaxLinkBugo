@@ -92,11 +92,23 @@ class ChildCompletionChart extends StatelessWidget {
 /// Exact counts share a common zero-based scale; no interpolated/mock values.
 class FollowUpVaccineChart extends StatelessWidget {
   final List<VaccinationReminder> reminders;
-  const FollowUpVaccineChart({super.key, required this.reminders});
+  final List<ReminderVaccineCount> summary;
+  const FollowUpVaccineChart({
+    super.key,
+    this.reminders = const [],
+    this.summary = const [],
+  });
 
   @override
   Widget build(BuildContext context) {
     final groups = <String, ({String name, int due, int overdue})>{};
+    for (final row in summary) {
+      groups[row.vaccineId] = (
+        name: row.vaccineName,
+        due: row.dueToday,
+        overdue: row.overdue,
+      );
+    }
     for (final row in reminders) {
       if (row.status != VaccinationReminderStatus.dueToday &&
           row.status != VaccinationReminderStatus.overdue) {

@@ -435,7 +435,7 @@ class _VaccinationAssessmentScreenState
                     .surface,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xFFE7EDF4),
+                  color: Theme.of(context).colorScheme.outlineVariant,
                 ),
               ),
               child: Row(
@@ -626,7 +626,9 @@ class _VaccinationAssessmentScreenState
                           padding:
                               const EdgeInsets.all(13),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainer,
                             borderRadius:
                                 BorderRadius.circular(13),
                           ),
@@ -910,7 +912,7 @@ class _SectionCard extends StatelessWidget {
             .surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFE7EDF4),
+          color: Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
       child: Column(
@@ -1063,7 +1065,7 @@ class _VaccinationHistoryItem
           const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: Theme.of(context).colorScheme.surfaceContainer,
         borderRadius:
             BorderRadius.circular(13),
       ),

@@ -8,6 +8,20 @@ enum VaccinationReminderStatus {
 
 enum VaccinationReminderChannel { inApp, sms, email, printedFollowUp }
 
+class ReminderVaccineCount {
+  final String vaccineId;
+  final String vaccineName;
+  final int dueToday;
+  final int overdue;
+
+  const ReminderVaccineCount({
+    required this.vaccineId,
+    required this.vaccineName,
+    required this.dueToday,
+    required this.overdue,
+  });
+}
+
 class VaccinationReminder {
   bool get hasUnreadNotification =>
       !isRead &&

@@ -1,9 +1,9 @@
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
-import '../models/guardian_profile.dart';
-import '../models/guardian_registration.dart';
-import '../models/guardian_relationship_options.dart';
+import '../models/guardian/guardian_profile.dart';
+import '../models/guardian/guardian_registration.dart';
+import '../models/guardian/guardian_relationship_options.dart';
 import '../models/person_name.dart';
 import '../repositories/child_repository.dart';
 import '../utils/user_facing_error.dart';

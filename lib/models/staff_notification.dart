@@ -75,3 +75,21 @@ class StaffNotification {
     'created_at': createdAt.toIso8601String(),
   };
 }
+
+class StaffNotificationPage {
+  final List<StaffNotification> items;
+  final int overallCount;
+  final int totalCount;
+  final int unreadCount;
+  final bool hasMore;
+  final int nextOffset;
+
+  const StaffNotificationPage({
+    required this.items,
+    required this.overallCount,
+    required this.totalCount,
+    required this.unreadCount,
+    required this.hasMore,
+    required this.nextOffset,
+  });
+}

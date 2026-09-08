@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/child_link_request.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_link_request.dart';
 import 'package:qr_code_based_pediatric_vaccination/repositories/mock_child_repository.dart';
 
 void main() {

@@ -5,9 +5,11 @@ import '../models/child_correction.dart';
 import '../models/guardian_registration.dart';
 import '../models/guardian_invitation.dart';
 import '../models/child_link_request.dart';
+import '../models/vaccination_schedule_state.dart';
 import '../services/mock_identifier_generator.dart';
 import '../services/mock_scenario_clock.dart';
 import 'child_repository.dart';
+import 'mock_vaccination_repository.dart';
 
 class MockChildRepository implements ChildRepository {
   static final List<ChildProfile> _guardianAccountChildren = [
@@ -474,6 +476,85 @@ class MockChildRepository implements ChildRepository {
   }
 
   @override
+  Future<RegisteredFamilyPage> getHealthWorkerRegisteredFamiliesPage({
+    String search = '',
+    VaccinationScheduleState? status,
+    Set<String>? guardianIds,
+    int pageSize = 20,
+    DateTime? cursorCreatedAt,
+    String? cursorGuardianId,
+  }) async {
+    final vaccinationRepository = MockVaccinationRepository();
+    final families = await getHealthWorkerRegisteredFamilies();
+    final summaries = await Future.wait(
+      families.map((family) async {
+        final states = <String, VaccinationScheduleState>{};
+        for (final child in family.children) {
+          states[child.id] = summarizeSchedule(
+            await vaccinationRepository.getVaccinationSchedule(child),
+          );
+        }
+        return RegisteredFamilySummary(family: family, childStates: states);
+      }),
+    );
+    final query = search.trim().toLowerCase();
+    final filtered = summaries.where((summary) {
+      final family = summary.family;
+      if (guardianIds != null && !guardianIds.contains(family.guardian.id)) {
+        return false;
+      }
+      final matchesSearch = query.isEmpty ||
+          family.guardian.fullName.toLowerCase().contains(query) ||
+          family.guardian.guardianCode.toLowerCase().contains(query) ||
+          family.children.any(
+            (child) =>
+                child.fullName.toLowerCase().contains(query) ||
+                child.id.toLowerCase().contains(query),
+          );
+      return matchesSearch &&
+          (status == null || summary.childStates.values.contains(status));
+    }).toList();
+    filtered.sort((a, b) {
+      final date = b.family.guardian.registeredAt.compareTo(
+        a.family.guardian.registeredAt,
+      );
+      return date != 0
+          ? date
+          : b.family.guardian.id.compareTo(a.family.guardian.id);
+    });
+    final total = filtered.length;
+    final afterCursor = cursorCreatedAt == null || cursorGuardianId == null
+        ? filtered
+        : filtered.where((summary) {
+            final guardian = summary.family.guardian;
+            final date = guardian.registeredAt.compareTo(cursorCreatedAt);
+            return date < 0 ||
+                (date == 0 && guardian.id.compareTo(cursorGuardianId) < 0);
+          }).toList();
+    final safePageSize = pageSize.clamp(10, 50).toInt();
+    final items = afterCursor.take(safePageSize).toList(growable: false);
+    return RegisteredFamilyPage(
+      items: items,
+      totalCount: total,
+      hasMore: afterCursor.length > items.length,
+      nextCreatedAt: items.isEmpty
+          ? null
+          : items.last.family.guardian.registeredAt,
+      nextGuardianId: items.isEmpty ? null : items.last.family.guardian.id,
+    );
+  }
+
+  @override
+  Future<RegisteredFamily?> getHealthWorkerRegisteredFamily(
+    String guardianId,
+  ) async {
+    final families = await getHealthWorkerRegisteredFamilies();
+    return families
+        .where((family) => family.guardian.id == guardianId)
+        .firstOrNull;
+  }
+
+  @override
   Future<ExistingGuardianChildResult> addChildToExistingGuardian(
     ExistingGuardianChildRequest request,
   ) async {
@@ -561,6 +642,30 @@ class MockChildRepository implements ChildRepository {
         .toList(growable: false)
         .reversed
         .toList(growable: false);
+  }
+
+  @override
+  Future<ChildLinkRequestPage> getPendingChildLinkRequestsPage({
+    String query = '',
+    String? initialRequestId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final normalized = query.trim().toLowerCase();
+    final all = (await getPendingChildLinkRequests()).where((request) {
+      if (initialRequestId != null) return request.id == initialRequestId;
+      return normalized.isEmpty ||
+          request.childName.toLowerCase().contains(normalized) ||
+          request.guardianName.toLowerCase().contains(normalized) ||
+          request.requestCode.toLowerCase().contains(normalized);
+    }).toList(growable: false);
+    final items = all.skip(offset).take(limit).toList(growable: false);
+    return ChildLinkRequestPage(
+      items: items,
+      totalCount: all.length,
+      hasMore: offset + items.length < all.length,
+      nextOffset: offset + items.length,
+    );
   }
 
   @override
@@ -680,6 +785,8 @@ class MockChildRepository implements ChildRepository {
       sex: request.sex,
       phoneNumber: normalizedPhone,
       clearPhoneNumber: normalizedPhone == null || normalizedPhone.isEmpty,
+      emailAddress: request.emailAddress?.trim(),
+      clearEmailAddress: request.emailAddress?.trim().isEmpty ?? true,
       address: request.address.trim(),
       hasUserAccount: remainsActive,
       accessStatus: requestingOnlineAccess
@@ -776,7 +883,6 @@ class MockChildRepository implements ChildRepository {
     return ChildCorrectionResult(child: updated, correction: correction);
   }
 
-  @override
   Future<GuardianProfile> activateGuardianInvitation({
     required String invitationCode,
     required String userId,

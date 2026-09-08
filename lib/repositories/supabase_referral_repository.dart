@@ -1,11 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/child_profile.dart';
+import '../models/child/child_profile.dart';
 import '../models/referral.dart';
 import '../models/referral_verification_result.dart';
-import '../models/external_vaccination_record.dart';
-import '../models/external_vaccination_visit.dart';
-import '../models/external_vaccination_correction.dart';
+import '../models/external_vaccination/external_vaccination_record.dart';
+import '../models/external_vaccination/external_vaccination_visit.dart';
+import '../models/external_vaccination/external_vaccination_correction.dart';
 import '../models/referral_group.dart';
 import '../models/vaccine_inventory.dart';
 import 'referral_repository.dart';
@@ -251,7 +251,7 @@ class SupabaseReferralRepository implements ReferralRepository {
     final row = await _client
         .from('vaccination_records')
         .select('id, vaccination_code, child_id, vaccine_id, administered_on, '
-            'external_facility_name, external_health_worker_name, notes, created_at, '
+            'external_facility_name, external_health_worker_name, notes, recorded_at, '
             'referral_item_id, external_visit_id, vaccine_definitions!inner(name), '
             'external_vaccination_visits(visit_code)')
         .eq('referral_item_id', item['id'])
@@ -278,7 +278,7 @@ class SupabaseReferralRepository implements ReferralRepository {
     final row = await _client
         .from('vaccination_records')
         .select('id, vaccination_code, child_id, vaccine_id, administered_on, '
-            'external_facility_name, external_health_worker_name, notes, created_at, '
+            'external_facility_name, external_health_worker_name, notes, recorded_at, '
             'referral_item_id, external_visit_id, vaccine_definitions!inner(name), '
             'external_vaccination_visits(visit_code), referral_items!inner(referral_code)')
         .eq('id', id)
@@ -302,7 +302,7 @@ class SupabaseReferralRepository implements ReferralRepository {
     final rows = await _client
         .from('vaccination_records')
         .select('id, vaccination_code, child_id, vaccine_id, administered_on, '
-            'external_facility_name, external_health_worker_name, notes, created_at, '
+            'external_facility_name, external_health_worker_name, notes, recorded_at, '
             'referral_item_id, external_visit_id, vaccine_definitions!inner(name), '
             'referral_items!inner(referral_code)')
         .eq('external_visit_id', record.externalVisitId);
@@ -371,7 +371,7 @@ class SupabaseReferralRepository implements ReferralRepository {
       administeringFacility: row['external_facility_name'] as String? ?? '',
       healthWorkerName: row['external_health_worker_name'] as String? ?? '',
       notes: row['notes'] as String? ?? '',
-      recordedAt: DateTime.parse(row['created_at'] as String),
+      recordedAt: DateTime.parse(row['recorded_at'] as String),
     );
   }
 }

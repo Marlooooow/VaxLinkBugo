@@ -10,6 +10,18 @@ abstract class AppointmentRepository {
 
   Future<List<VaccinationAppointment>> getFacilityAppointments();
 
+  Future<List<VaccinationAppointment>> getFacilityUpcomingAppointments({
+    int limit = 2,
+  });
+
+  Future<AppointmentPage> getFacilityAppointmentsPage({
+    String? initialAppointmentId,
+    String? waitlistVaccineId,
+    bool waitlistOnly = false,
+    int limit = 20,
+    int offset = 0,
+  });
+
   Future<VaccinationAppointment> schedule(AppointmentRequest request);
 
   Future<VaccinationAppointment> reschedule(
@@ -27,6 +39,13 @@ abstract class AppointmentRepository {
   Future<List<AppointmentSlotOffer>> getGuardianSlotOffers(String guardianId);
 
   Future<List<AppointmentSlotOffer>> getFacilitySlotOffers();
+
+  Future<AppointmentOfferPage> getFacilitySlotOffersPage({
+    AppointmentSlotOfferStatus? status,
+    String? initialOfferId,
+    int limit = 20,
+    int offset = 0,
+  });
 
   Future<VaccinationAppointment?> respondToSlotOffer(
     String offerId,

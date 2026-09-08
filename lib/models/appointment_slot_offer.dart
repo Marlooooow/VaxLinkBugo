@@ -119,3 +119,19 @@ class AppointmentSlotOffer {
     'responded_at': respondedAt?.toIso8601String(),
   };
 }
+
+class AppointmentOfferPage {
+  final List<AppointmentSlotOffer> items;
+  final int totalCount;
+  final int pendingCount;
+  final bool hasMore;
+  final int nextOffset;
+
+  const AppointmentOfferPage({
+    required this.items,
+    required this.totalCount,
+    required this.pendingCount,
+    required this.hasMore,
+    required this.nextOffset,
+  });
+}

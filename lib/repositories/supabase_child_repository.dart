@@ -6,6 +6,7 @@ import '../models/guardian_correction.dart';
 import '../models/guardian_profile.dart';
 import '../models/guardian_registration.dart';
 import '../models/guardian_invitation.dart';
+import '../models/vaccination_schedule_state.dart';
 import 'child_repository.dart';
 import 'guardian_invitation_repository.dart';
 import 'live_data_access.dart';
@@ -43,6 +44,94 @@ class SupabaseChildRepository
         .eq('facility_id', facility)
         .order('created_at', ascending: false);
     return rows.map(familyFromRow).toList(growable: false);
+  }
+
+  @override
+  Future<RegisteredFamilyPage> getHealthWorkerRegisteredFamiliesPage({
+    String search = '',
+    VaccinationScheduleState? status,
+    Set<String>? guardianIds,
+    int pageSize = 20,
+    DateTime? cursorCreatedAt,
+    String? cursorGuardianId,
+  }) async {
+    final safePageSize = pageSize.clamp(10, 50).toInt();
+    final response = await _client.rpc(
+      'get_registered_family_summary_page',
+      params: {
+        'p_search': search.trim().isEmpty ? null : search.trim(),
+        'p_status': switch (status) {
+          VaccinationScheduleState.dueNow => 'due_now',
+          VaccinationScheduleState.completed => 'completed',
+          VaccinationScheduleState.upcoming => 'upcoming',
+          VaccinationScheduleState.overdue => 'overdue',
+          null => null,
+        },
+        'p_guardian_ids': guardianIds?.toList(growable: false),
+        'p_page_size': safePageSize,
+        'p_cursor_created_at': cursorCreatedAt?.toUtc().toIso8601String(),
+        'p_cursor_guardian_id': cursorGuardianId,
+      },
+    );
+    final rows = (response as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList(growable: false);
+    final hasMore = rows.length > safePageSize;
+    final pageRows = hasMore ? rows.take(safePageSize) : rows;
+    final items = pageRows.map((row) {
+      final guardian = guardianFromRow(
+        Map<String, dynamic>.from(row['guardian'] as Map),
+      );
+      final children = <ChildProfile>[];
+      final states = <String, VaccinationScheduleState>{};
+      for (final raw in row['child_summaries'] as List? ?? const []) {
+        final summary = Map<String, dynamic>.from(raw as Map);
+        final child = childFromRow(
+          Map<String, dynamic>.from(summary['child'] as Map),
+          relationship: LiveDataAccess.relationship(
+            summary['relationship'] as String,
+            guardian.sex,
+          ),
+        );
+        children.add(child);
+        states[child.id] = switch (summary['schedule_state']) {
+          'completed' => VaccinationScheduleState.completed,
+          'due_now' => VaccinationScheduleState.dueNow,
+          'overdue' => VaccinationScheduleState.overdue,
+          _ => VaccinationScheduleState.upcoming,
+        };
+      }
+      return RegisteredFamilySummary(
+        family: RegisteredFamily(
+          guardian: guardian,
+          children: children,
+          links: const [],
+        ),
+        childStates: states,
+      );
+    }).toList(growable: false);
+    return RegisteredFamilyPage(
+      items: items,
+      totalCount: rows.isEmpty
+          ? 0
+          : (rows.first['total_count'] as num?)?.toInt() ?? items.length,
+      hasMore: hasMore,
+      nextCreatedAt: items.isEmpty ? null : items.last.family.guardian.registeredAt,
+      nextGuardianId: items.isEmpty ? null : items.last.family.guardian.id,
+    );
+  }
+
+  @override
+  Future<RegisteredFamily?> getHealthWorkerRegisteredFamily(
+    String guardianId,
+  ) async {
+    await _access.staffFacilityId();
+    final row = await _client
+        .from('guardians')
+        .select(_familySelect)
+        .eq('id', guardianId)
+        .maybeSingle();
+    return row == null ? null : familyFromRow(row);
   }
 
   @override
@@ -94,6 +183,37 @@ class SupabaseChildRepository
         .eq('status', 'pending')
         .order('created_at');
     return rows.map(requestFromRow).toList(growable: false);
+  }
+
+  @override
+  Future<ChildLinkRequestPage> getPendingChildLinkRequestsPage({
+    String query = '',
+    String? initialRequestId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final payload = Map<String, dynamic>.from(
+      await _client.rpc(
+        'get_pending_child_link_request_page',
+        params: {
+          'p_search': query.trim().isEmpty ? null : query.trim(),
+          'p_request_id': initialRequestId,
+          'p_page_size': limit,
+          'p_page_offset': offset,
+        },
+      ) as Map,
+    );
+    final items = (payload['items'] as List? ?? const [])
+        .map(
+          (row) => requestFromRow(Map<String, dynamic>.from(row as Map)),
+        )
+        .toList(growable: false);
+    return ChildLinkRequestPage(
+      items: items,
+      totalCount: (payload['total_count'] as num?)?.toInt() ?? items.length,
+      hasMore: payload['has_more'] as bool? ?? false,
+      nextOffset: (payload['next_offset'] as num?)?.toInt() ?? offset,
+    );
   }
 
   @override
@@ -263,9 +383,13 @@ class SupabaseChildRepository
                 'middle_name': request.middleName?.trim(),
                 'last_name': request.lastName?.trim(),
                 'suffix': request.suffix?.trim(),
-                'birth_date': request.birthDate?.toIso8601String().split('T').first,
+                'birth_date': request.birthDate
+                    ?.toIso8601String()
+                    .split('T')
+                    .first,
                 'sex': request.sex.toLowerCase(),
                 'phone': request.phoneNumber?.trim(),
+                'email': request.emailAddress?.trim(),
                 'address': request.address.trim(),
               },
               'correction_reason': request.reason.trim(),
@@ -347,14 +471,6 @@ class SupabaseChildRepository
       ),
     );
   }
-
-  @override
-  Future<GuardianProfile> activateGuardianInvitation({
-    required String invitationCode,
-    required String userId,
-  }) async => throw const LiveOperationUnavailable(
-    'Direct guardian linking; use Activate guardian online access',
-  );
 
   static Map<String, Object?> _childInput(ChildRegistrationInput child) => {
     'full_name': child.fullName.trim(),

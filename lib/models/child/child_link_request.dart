@@ -1,4 +1,4 @@
-import 'person_name.dart';
+import '../person_name.dart';
 
 enum ChildLinkRequestStatus { pending, approved, rejected, merged }
 
@@ -90,6 +90,20 @@ class ChildLinkRequest {
     'review_notes': reviewNotes,
     'linked_child_id': linkedChildId,
   };
+}
+
+class ChildLinkRequestPage {
+  final List<ChildLinkRequest> items;
+  final int totalCount;
+  final bool hasMore;
+  final int nextOffset;
+
+  const ChildLinkRequestPage({
+    required this.items,
+    required this.totalCount,
+    required this.hasMore,
+    required this.nextOffset,
+  });
 }
 
 class SubmitChildLinkRequest {

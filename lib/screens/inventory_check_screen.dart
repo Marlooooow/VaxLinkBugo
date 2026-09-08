@@ -180,7 +180,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

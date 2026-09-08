@@ -131,7 +131,7 @@ class _ExternalVaccinationScreenState extends State<ExternalVaccinationScreen> {
     final primary = colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

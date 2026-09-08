@@ -43,11 +43,8 @@ class _RegisteredFamilyDetailsScreenState
   Future<void> _refreshLiveFamily() async {
     if (!RepositoryRegistry.instance.environment.isLive) return;
     try {
-      final families = await RepositoryRegistry.instance.childRepository
-          .getHealthWorkerRegisteredFamilies();
-      final refreshed = families
-          .where((item) => item.guardian.id == family.guardian.id)
-          .firstOrNull;
+      final refreshed = await RepositoryRegistry.instance.childRepository
+          .getHealthWorkerRegisteredFamily(family.guardian.id);
       if (mounted && refreshed != null) setState(() => family = refreshed);
     } catch (_) {
       if (mounted) {
@@ -586,7 +583,9 @@ class _DetailsCard extends StatelessWidget {
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFFE7EDF4)),
+      border: Border.all(
+        color: Theme.of(context).colorScheme.outlineVariant,
+      ),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

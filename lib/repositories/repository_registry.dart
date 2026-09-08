@@ -27,12 +27,17 @@ import 'supabase_child_repository.dart';
 import 'supabase_vaccination_repository.dart';
 import 'supabase_appointment_repository.dart';
 import 'live_qr_repository.dart';
-import 'pending_live_referral_repository.dart';
 import 'supabase_referral_repository.dart';
 import 'staff_repository.dart';
 import 'supabase_staff_repository.dart';
 import 'unavailable_staff_repository.dart';
 import 'staff_notification_repository.dart';
+import 'profile_repository.dart';
+import 'supabase_profile_repository.dart';
+import 'unavailable_profile_repository.dart';
+import 'vaccination_records_repository.dart';
+import 'supabase_vaccination_records_repository.dart';
+import 'mock_vaccination_records_repository.dart';
 
 class RepositoryRegistry {
   static late RepositoryRegistry instance;
@@ -44,10 +49,12 @@ class RepositoryRegistry {
   final ReminderRepository reminderRepository;
   final ChildRepository childRepository;
   final VaccinationRepository vaccinationRepository;
+  final VaccinationRecordsRepository vaccinationRecordsRepository;
   final AppointmentRepository appointmentRepository;
   final ReferralRepository referralRepository;
   final QrRepository qrRepository;
   final StaffRepository staffRepository;
+  final ProfileRepository profileRepository;
   StaffNotificationRepository staffNotificationRepository;
 
   RepositoryRegistry._({
@@ -58,10 +65,12 @@ class RepositoryRegistry {
     required this.reminderRepository,
     required this.childRepository,
     required this.vaccinationRepository,
+    required this.vaccinationRecordsRepository,
     required this.appointmentRepository,
     required this.referralRepository,
     required this.qrRepository,
     required this.staffRepository,
+    required this.profileRepository,
     required this.staffNotificationRepository,
   });
 
@@ -79,14 +88,18 @@ class RepositoryRegistry {
     final authRepository = environment.dataMode == AppDataMode.live
         ? SupabaseAuthRepository(database!)
         : MockAuthRepository();
+    final VaccinationRepository vaccinations = live
+        ? SupabaseVaccinationRepository(database!)
+        : MockVaccinationRepository();
 
     final registry = RepositoryRegistry._(
       environment: environment,
       authRepository: authRepository,
       childRepository: children,
-      vaccinationRepository: live
-          ? SupabaseVaccinationRepository(database!)
-          : MockVaccinationRepository(),
+      vaccinationRepository: vaccinations,
+      vaccinationRecordsRepository: live
+          ? SupabaseVaccinationRecordsRepository(database!)
+          : MockVaccinationRecordsRepository(children, vaccinations),
       appointmentRepository: live
           ? SupabaseAppointmentRepository(database!)
           : MockAppointmentRepository(),
@@ -97,7 +110,11 @@ class RepositoryRegistry {
       staffRepository: live
           ? SupabaseStaffRepository(database!)
           : const UnavailableStaffRepository(),
-      staffNotificationRepository: const UnavailableStaffNotificationRepository(),
+      profileRepository: live
+          ? SupabaseProfileRepository(database!)
+          : const UnavailableProfileRepository(),
+      staffNotificationRepository:
+          const UnavailableStaffNotificationRepository(),
       advisoryInsightRepository: environment.dataMode == AppDataMode.live
           ? SupabaseAdvisoryInsightRepository(database!)
           : MockAdvisoryInsightRepository(),

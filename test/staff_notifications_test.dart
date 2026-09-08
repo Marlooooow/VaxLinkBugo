@@ -40,6 +40,31 @@ class _Repository implements StaffNotificationRepository {
   ];
 
   @override
+  Future<StaffNotificationPage> loadPage({
+    required String userId,
+    bool unreadOnly = false,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final all = await load();
+    final unread = all.where((item) => !isRead(userId, item.id)).toList();
+    final visible = unreadOnly ? unread : all;
+    final items = visible.skip(offset).take(limit).toList(growable: false);
+    return StaffNotificationPage(
+      items: items,
+      overallCount: all.length,
+      totalCount: visible.length,
+      unreadCount: unread.length,
+      hasMore: offset + items.length < visible.length,
+      nextOffset: offset + items.length,
+    );
+  }
+
+  @override
+  Future<int> unreadCount(String userId) async =>
+      (await load()).where((item) => !isRead(userId, item.id)).length;
+
+  @override
   Future<String> resetGuardianPassword(String requestId) async => 'guardian123';
 
   @override

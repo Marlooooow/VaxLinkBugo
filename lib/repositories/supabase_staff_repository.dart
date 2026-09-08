@@ -18,6 +18,33 @@ class SupabaseStaffRepository implements StaffRepository {
   }
 
   @override
+  Future<StaffPage> getStaffMembersPage({
+    String query = '',
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final result = Map<String, dynamic>.from(
+      await _client.rpc(
+            'get_staff_member_page',
+            params: {
+              'p_search': query.trim().isEmpty ? null : query.trim(),
+              'p_page_size': limit,
+              'p_page_offset': offset,
+            },
+          )
+          as Map,
+    );
+    return StaffPage(
+      items: (result['items'] as List? ?? const [])
+          .map((row) => _fromRow(Map<String, dynamic>.from(row as Map)))
+          .toList(growable: false),
+      totalCount: (result['total_count'] as num?)?.toInt() ?? 0,
+      hasMore: result['has_more'] == true,
+      nextOffset: (result['next_offset'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  @override
   Future<StaffInvitationResult> registerStaff(
     StaffRegistrationRequest request,
   ) async {
@@ -42,6 +69,29 @@ class SupabaseStaffRepository implements StaffRepository {
       activationCode: invitation['activation_code'] as String,
       expiresAt: DateTime.parse(invitation['expires_at'] as String),
     );
+  }
+
+  @override
+  Future<StaffMember> setStaffStatus(
+    String staffId,
+    StaffAccessStatus status,
+  ) async {
+    if (status == StaffAccessStatus.invitationPending) {
+      throw ArgumentError(
+        'Invitation pending is not an account status action.',
+      );
+    }
+    final row = Map<String, dynamic>.from(
+      await _client.rpc(
+            'set_staff_member_status',
+            params: {
+              'target_staff_id': staffId,
+              'requested_status': status.name,
+            },
+          )
+          as Map,
+    );
+    return _fromRow(row);
   }
 
   static StaffMember _fromRow(Map<String, dynamic> row) => StaffMember(

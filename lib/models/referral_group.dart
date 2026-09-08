@@ -88,3 +88,33 @@ class ReferralGroup {
     };
   }
 }
+
+class ReferralGroupSummaryCounts {
+  final int pending;
+  final int partiallyCompleted;
+  final int completed;
+  final int overdue;
+
+  const ReferralGroupSummaryCounts({
+    this.pending = 0,
+    this.partiallyCompleted = 0,
+    this.completed = 0,
+    this.overdue = 0,
+  });
+}
+
+class ReferralGroupPage {
+  final List<ReferralGroup> items;
+  final int totalCount;
+  final bool hasMore;
+  final int nextOffset;
+  final ReferralGroupSummaryCounts summary;
+
+  const ReferralGroupPage({
+    required this.items,
+    required this.totalCount,
+    required this.hasMore,
+    required this.nextOffset,
+    required this.summary,
+  });
+}

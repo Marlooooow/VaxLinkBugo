@@ -40,9 +40,10 @@ class _DashboardAppointmentsState extends State<DashboardAppointments> {
   }
 
   void _load() {
-    _repository = widget.repository ?? RepositoryRegistry.instance.appointmentRepository;
+    _repository =
+        widget.repository ?? RepositoryRegistry.instance.appointmentRepository;
     _rows = widget.guardianId == null
-        ? _repository.getFacilityAppointments()
+        ? _repository.getFacilityUpcomingAppointments(limit: 2)
         : _repository.getGuardianAppointments(widget.guardianId!);
   }
 
