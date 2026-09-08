@@ -17,10 +17,7 @@ import 'staff_activation_screen.dart';
 class LoginScreen extends StatefulWidget {
   final AuthRepository authRepository;
 
-  const LoginScreen({
-    super.key,
-    required this.authRepository,
-  });
+  const LoginScreen({super.key, required this.authRepository});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -61,8 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // Basic client-side validation.
     if (username.isEmpty || password.isEmpty) {
       setState(() {
-        _errorMessage =
-            'Please enter your username and password.';
+        _errorMessage = 'Please enter your username and password.';
       });
       return;
     }
@@ -111,8 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _errorMessage = UserFacingError.message(
           error,
-          fallback:
-              'Sign-in could not be completed. Please try again.',
+          fallback: 'Sign-in could not be completed. Please try again.',
         );
       });
     } finally {
@@ -129,10 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _goToDashboard(AppUser user) {
     SessionContext.setUser(user);
 
-    final screen = AppShell(
-      user: user,
-      authRepository: widget.authRepository,
-    );
+    final screen = AppShell(user: user, authRepository: widget.authRepository);
 
     Navigator.pushReplacement(
       context,
@@ -144,10 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // DEMO LOGIN
   // ================================================================
 
-  void _fillDemo({
-    required String username,
-    required String password,
-  }) {
+  void _fillDemo({required String username, required String password}) {
     _usernameController.text = username;
     _passwordController.text = password;
 
@@ -165,13 +154,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _activateGuardianAccess() async {
     final credentials =
         await Navigator.push<({String username, String password})>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => GuardianActivationScreen(
-          authRepository: widget.authRepository,
-        ),
-      ),
-    );
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                GuardianActivationScreen(authRepository: widget.authRepository),
+          ),
+        );
 
     if (credentials == null || !mounted) return;
 
@@ -190,13 +178,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _activateStaffAccess() async {
     final credentials =
         await Navigator.push<({String username, String password})>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => StaffActivationScreen(
-          authRepository: widget.authRepository,
-        ),
-      ),
-    );
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                StaffActivationScreen(authRepository: widget.authRepository),
+          ),
+        );
 
     if (credentials == null || !mounted) return;
 
@@ -221,31 +208,21 @@ class _LoginScreenState extends State<LoginScreen> {
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetContext) {
-        final colors =
-            Theme.of(sheetContext).colorScheme;
+        final colors = Theme.of(sheetContext).colorScheme;
 
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              4,
-              20,
-              20,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // ------------------------------------------------------
                 // TITLE
                 // ------------------------------------------------------
-
                 Text(
                   'Get online access',
                   textAlign: TextAlign.center,
@@ -273,7 +250,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 // ------------------------------------------------------
                 // GUARDIAN
                 // ------------------------------------------------------
-
                 _AccessOption(
                   icon: Icons.family_restroom_rounded,
                   title: 'Guardian access',
@@ -289,16 +265,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 // ------------------------------------------------------
                 // STAFF
                 // ------------------------------------------------------
-
-                if (widget.authRepository
-                    is! DemoRepository) ...[
+                if (widget.authRepository is! DemoRepository) ...[
                   const SizedBox(height: 10),
 
                   _AccessOption(
                     icon: Icons.medical_services_outlined,
                     title: 'Staff access',
-                    description:
-                        'For authorized barangay health personnel.',
+                    description: 'For authorized barangay health personnel.',
                     onTap: () {
                       Navigator.pop(sheetContext);
                       _activateStaffAccess();
@@ -311,7 +284,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 // ------------------------------------------------------
                 // CANCEL
                 // ------------------------------------------------------
-
                 TextButton(
                   onPressed: () {
                     Navigator.pop(sheetContext);
@@ -331,9 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // ================================================================
 
   Future<void> _forgotPassword() async {
-    final controller = TextEditingController(
-      text: _usernameController.text,
-    );
+    final controller = TextEditingController(text: _usernameController.text);
 
     final username = await showDialog<String>(
       context: context,
@@ -348,9 +318,7 @@ class _LoginScreenState extends State<LoginScreen> {
             decoration: const InputDecoration(
               labelText: 'Guardian ID',
               hintText: 'Enter your Guardian ID',
-              prefixIcon: Icon(
-                Icons.badge_outlined,
-              ),
+              prefixIcon: Icon(Icons.badge_outlined),
             ),
           ),
           actions: [
@@ -362,10 +330,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             FilledButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  controller.text.trim(),
-                );
+                Navigator.pop(dialogContext, controller.text.trim());
               },
               child: const Text('Request reset'),
             ),
@@ -376,22 +341,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
     controller.dispose();
 
-    if (username == null ||
-        username.trim().isEmpty ||
-        !mounted) {
+    if (username == null || username.trim().isEmpty || !mounted) {
       return;
     }
 
     try {
-      final found = await widget.authRepository
-          .requestGuardianPasswordReset(username);
+      final found = await widget.authRepository.requestGuardianPasswordReset(
+        username,
+      );
 
       if (!mounted) return;
 
       if (!found) {
         setState(() {
-          _errorMessage =
-              'Guardian ID not found. Check the ID and try again.';
+          _errorMessage = 'Guardian ID not found. Check the ID and try again.';
         });
         return;
       }
@@ -414,8 +377,7 @@ class _LoginScreenState extends State<LoginScreen> {
           content: Text(
             UserFacingError.message(
               error,
-              fallback:
-                  'The reset request could not be sent.',
+              fallback: 'The reset request could not be sent.',
             ),
           ),
         ),
@@ -433,9 +395,7 @@ class _LoginScreenState extends State<LoginScreen> {
       data: Theme.of(context).brightness == Brightness.dark
           ? AppTheme.darkTheme
           : AppTheme.loginTheme,
-      child: Builder(
-        builder: _buildLogin,
-      ),
+      child: Builder(builder: _buildLogin),
     );
   }
 
@@ -457,34 +417,22 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: SingleChildScrollView(
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.fromLTRB(
-                    24,
-                    28,
-                    24,
-                    40,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: 430,
-                    ),
+                    constraints: const BoxConstraints(maxWidth: 430),
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // ==================================================
                         // BRAND
                         // ==================================================
-
-                        const Center(
-                          child: AppLogo(size: 72),
-                        ),
+                        const Center(child: AppLogo(size: 72)),
 
                         const SizedBox(height: 32),
 
                         // ==================================================
                         // WELCOME
                         // ==================================================
-
                         Text(
                           'Welcome back!',
                           textAlign: TextAlign.center,
@@ -497,17 +445,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
 
-
                         const SizedBox(height: 15),
 
                         // ==================================================
                         // USERNAME
                         // ==================================================
-
                         const _FieldLabel(
                           label: 'Username',
-                          icon:
-                              Icons.person_outline_rounded,
+                          icon: Icons.person_outline_rounded,
                         ),
 
                         const SizedBox(height: 8),
@@ -518,19 +463,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           enabled: !_isLoading,
                           autocorrect: false,
                           enableSuggestions: false,
-                          textInputAction:
-                              TextInputAction.next,
+                          textInputAction: TextInputAction.next,
                           onSubmitted: (_) {
                             _passwordFocusNode.requestFocus();
                           },
-                          decoration:
-                              const InputDecoration(
-                            hintText:
-                                'Enter your username',
-                            prefixIcon: Icon(
-                              Icons
-                                  .person_outline_rounded,
-                            ),
+                          decoration: const InputDecoration(
+                            hintText: 'Enter your username',
+                            prefixIcon: Icon(Icons.person_outline_rounded),
                           ),
                         ),
 
@@ -539,11 +478,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         // ==================================================
                         // PASSWORD
                         // ==================================================
-
                         const _FieldLabel(
                           label: 'Password',
-                          icon:
-                              Icons.lock_outline_rounded,
+                          icon: Icons.lock_outline_rounded,
                         ),
 
                         const SizedBox(height: 8),
@@ -553,20 +490,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           focusNode: _passwordFocusNode,
                           enabled: !_isLoading,
                           obscureText: _obscurePassword,
-                          textInputAction:
-                              TextInputAction.done,
+                          textInputAction: TextInputAction.done,
                           onSubmitted: (_) {
                             if (!_isLoading) {
                               _login();
                             }
                           },
                           decoration: InputDecoration(
-                            hintText:
-                                'Enter your password',
-                            prefixIcon: const Icon(
-                              Icons
-                                  .lock_outline_rounded,
-                            ),
+                            hintText: 'Enter your password',
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
                               tooltip: _obscurePassword
                                   ? 'Show password'
@@ -575,16 +507,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? null
                                   : () {
                                       setState(() {
-                                        _obscurePassword =
-                                            !_obscurePassword;
+                                        _obscurePassword = !_obscurePassword;
                                       });
                                     },
                               icon: Icon(
                                 _obscurePassword
-                                    ? Icons
-                                        .visibility_outlined
-                                    : Icons
-                                        .visibility_off_outlined,
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
                               ),
                             ),
                           ),
@@ -593,39 +522,27 @@ class _LoginScreenState extends State<LoginScreen> {
                         // ==================================================
                         // FORGOT PASSWORD
                         // ==================================================
-
                         Align(
-                          alignment:
-                              Alignment.centerRight,
+                          alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: _isLoading
-                                ? null
-                                : _forgotPassword,
+                            onPressed: _isLoading ? null : _forgotPassword,
                             style: TextButton.styleFrom(
-                              padding:
-                                  const EdgeInsets
-                                      .symmetric(
+                              padding: const EdgeInsets.symmetric(
                                 horizontal: 4,
                                 vertical: 8,
                               ),
-                              minimumSize:
-                                  const Size(48, 40),
+                              minimumSize: const Size(48, 40),
                             ),
-                            child: const Text(
-                              'Forgot password?',
-                            ),
+                            child: const Text('Forgot password?'),
                           ),
                         ),
 
                         // ==================================================
                         // ERROR
                         // ==================================================
-
                         if (_errorMessage != null) ...[
                           const SizedBox(height: 2),
-                          _LoginError(
-                            message: _errorMessage!,
-                          ),
+                          _LoginError(message: _errorMessage!),
                         ],
 
                         const SizedBox(height: 14),
@@ -633,16 +550,12 @@ class _LoginScreenState extends State<LoginScreen> {
                         // ==================================================
                         // SIGN IN BUTTON
                         // ==================================================
-
                         SizedBox(
                           height: 54,
                           child: FilledButton(
-                            onPressed:
-                                _isLoading ? null : _login,
+                            onPressed: _isLoading ? null : _login,
                             child: Text(
-                              _isLoading
-                                  ? 'Signing in…'
-                                  : 'Sign in',
+                              _isLoading ? 'Signing in…' : 'Sign in',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                               ),
@@ -655,7 +568,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         // ==================================================
                         // ACCESS
                         // ==================================================
-
                         Text(
                           'Need online access?',
                           textAlign: TextAlign.center,
@@ -669,31 +581,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         Center(
                           child: TextButton.icon(
-                            onPressed: _isLoading
-                                ? null
-                                : _showAccessOptions,
+                            onPressed: _isLoading ? null : _showAccessOptions,
                             icon: const Icon(
-                              Icons
-                                  .person_add_alt_1_rounded,
+                              Icons.person_add_alt_1_rounded,
                               size: 18,
                             ),
-                            label: const Text(
-                              'Activate account',
-                            ),
+                            label: const Text('Activate account'),
                           ),
                         ),
 
                         // ==================================================
                         // DEMO SECTION
                         // ==================================================
-
-                        if (widget.authRepository
-                            is DemoRepository) ...[
+                        if (widget.authRepository is DemoRepository) ...[
                           const SizedBox(height: 20),
 
-                          const _SectionDivider(
-                            label: 'Prototype Demo',
-                          ),
+                          const _SectionDivider(label: 'Prototype Demo'),
 
                           const SizedBox(height: 14),
 
@@ -701,8 +604,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             'Tap an account to automatically fill in the login details.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color:
-                                  colors.onSurfaceVariant,
+                              color: colors.onSurfaceVariant,
                               fontSize: 12.5,
                               height: 1.4,
                             ),
@@ -711,8 +613,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 13),
 
                           _DemoAccountButton(
-                            icon: Icons
-                                .family_restroom_rounded,
+                            icon: Icons.family_restroom_rounded,
                             name: 'Maria Santos',
                             role: 'Guardian',
                             username: 'guardian',
@@ -721,8 +622,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               if (!_isLoading) {
                                 _fillDemo(
                                   username: 'guardian',
-                                  password:
-                                      'guardian123',
+                                  password: 'guardian123',
                                 );
                               }
                             },
@@ -731,20 +631,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 9),
 
                           _DemoAccountButton(
-                            icon: Icons
-                                .family_restroom_rounded,
+                            icon: Icons.family_restroom_rounded,
                             name: 'Paolo Mendoza',
                             role: 'Guardian',
-                            username:
-                                'paolo.guardian',
+                            username: 'paolo.guardian',
                             password: 'guardian123',
                             onTap: () {
                               if (!_isLoading) {
                                 _fillDemo(
-                                  username:
-                                      'paolo.guardian',
-                                  password:
-                                      'guardian123',
+                                  username: 'paolo.guardian',
+                                  password: 'guardian123',
                                 );
                               }
                             },
@@ -753,20 +649,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 9),
 
                           _DemoAccountButton(
-                            icon: Icons
-                                .family_restroom_rounded,
+                            icon: Icons.family_restroom_rounded,
                             name: 'Grace Villanueva',
                             role: 'Guardian',
-                            username:
-                                'grace.guardian',
+                            username: 'grace.guardian',
                             password: 'guardian123',
                             onTap: () {
                               if (!_isLoading) {
                                 _fillDemo(
-                                  username:
-                                      'grace.guardian',
-                                  password:
-                                      'guardian123',
+                                  username: 'grace.guardian',
+                                  password: 'guardian123',
                                 );
                               }
                             },
@@ -775,10 +667,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 9),
 
                           _DemoAccountButton(
-                            icon: Icons
-                                .admin_panel_settings_outlined,
-                            name:
-                                'Barangay Health Administrator',
+                            icon: Icons.admin_panel_settings_outlined,
+                            name: 'Barangay Health Administrator',
                             role: 'Administrator',
                             username: 'admin',
                             password: 'admin123',
@@ -786,8 +676,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               if (!_isLoading) {
                                 _fillDemo(
                                   username: 'admin',
-                                  password:
-                                      'admin123',
+                                  password: 'admin123',
                                 );
                               }
                             },
@@ -796,20 +685,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 9),
 
                           _DemoAccountButton(
-                            icon: Icons
-                                .medical_services_outlined,
+                            icon: Icons.medical_services_outlined,
                             name: 'Nurse Maria Reyes',
                             role: 'Health Worker',
-                            username:
-                                'healthworker',
+                            username: 'healthworker',
                             password: 'health123',
                             onTap: () {
                               if (!_isLoading) {
                                 _fillDemo(
-                                  username:
-                                      'healthworker',
-                                  password:
-                                      'health123',
+                                  username: 'healthworker',
+                                  password: 'health123',
                                 );
                               }
                             },
@@ -819,12 +704,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         // ==================================================
                         // SECURITY MESSAGE
                         // ==================================================
-
                         const SizedBox(height: 26),
 
                         _SecurityMessage(
-                          text: widget.authRepository
-                                  is DemoRepository
+                          text: widget.authRepository is DemoRepository
                               ? 'Prototype authentication is simulated'
                               : 'Your account is protected and accessible only to authorized users.',
                         ),
@@ -838,12 +721,7 @@ class _LoginScreenState extends State<LoginScreen> {
             // ============================================================
             // THEME TOGGLE
             // ============================================================
-
-            Positioned(
-              top: 4,
-              right: 8,
-              child: ThemeModeButton(),
-            ),
+            Positioned(top: 4, right: 8, child: ThemeModeButton()),
           ],
         ),
       ),
@@ -859,10 +737,7 @@ class _FieldLabel extends StatelessWidget {
   final String label;
   final IconData icon;
 
-  const _FieldLabel({
-    required this.label,
-    required this.icon,
-  });
+  const _FieldLabel({required this.label, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -870,11 +745,7 @@ class _FieldLabel extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 17,
-          color: colors.onSurfaceVariant,
-        ),
+        Icon(icon, size: 17, color: colors.onSurfaceVariant),
         const SizedBox(width: 7),
         Text(
           label,
@@ -911,9 +782,7 @@ class _AccessOption extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
 
     return Material(
-      color: colors.surfaceContainerHighest.withValues(
-        alpha: 0.45,
-      ),
+      color: colors.surfaceContainerHighest.withValues(alpha: 0.45),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -921,32 +790,23 @@ class _AccessOption extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: colors.primary.withValues(
-                    alpha: 0.10,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(14),
+                  color: colors.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  icon,
-                  color: colors.primary,
-                  size: 23,
-                ),
+                child: Icon(icon, color: colors.primary, size: 23),
               ),
 
               const SizedBox(width: 13),
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
@@ -962,8 +822,7 @@ class _AccessOption extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         height: 1.35,
-                        color:
-                            colors.onSurfaceVariant,
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -992,9 +851,7 @@ class _AccessOption extends StatelessWidget {
 class _LoginError extends StatelessWidget {
   final String message;
 
-  const _LoginError({
-    required this.message,
-  });
+  const _LoginError({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -1006,19 +863,12 @@ class _LoginError extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: colors.error.withValues(alpha: 0.18),
-        ),
+        border: Border.all(color: colors.error.withValues(alpha: 0.18)),
       ),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.error_outline_rounded,
-            color: colors.error,
-            size: 20,
-          ),
+          Icon(Icons.error_outline_rounded, color: colors.error, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -1044,9 +894,7 @@ class _LoginError extends StatelessWidget {
 class _SectionDivider extends StatelessWidget {
   final String label;
 
-  const _SectionDivider({
-    required this.label,
-  });
+  const _SectionDivider({required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -1054,14 +902,9 @@ class _SectionDivider extends StatelessWidget {
 
     return Row(
       children: [
-        Expanded(
-          child: Divider(
-            color: colors.outlineVariant,
-          ),
-        ),
+        Expanded(child: Divider(color: colors.outlineVariant)),
         Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             label,
             style: TextStyle(
@@ -1071,11 +914,7 @@ class _SectionDivider extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(
-          child: Divider(
-            color: colors.outlineVariant,
-          ),
-        ),
+        Expanded(child: Divider(color: colors.outlineVariant)),
       ],
     );
   }
@@ -1088,9 +927,7 @@ class _SectionDivider extends StatelessWidget {
 class _SecurityMessage extends StatelessWidget {
   final String text;
 
-  const _SecurityMessage({
-    required this.text,
-  });
+  const _SecurityMessage({required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -1152,45 +989,32 @@ class _DemoAccountButton extends StatelessWidget {
       color: primary.withValues(alpha: 0.045),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(15),
-        side: BorderSide(
-          color: primary.withValues(alpha: 0.16),
-        ),
+        side: BorderSide(color: primary.withValues(alpha: 0.16)),
       ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(15),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 12,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor:
-                    primary.withValues(alpha: 0.10),
-                child: Icon(
-                  icon,
-                  color: primary,
-                  size: 20,
-                ),
+                backgroundColor: primary.withValues(alpha: 0.10),
+                child: Icon(icon, color: primary, size: 20),
               ),
 
               const SizedBox(width: 12),
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -1198,8 +1022,7 @@ class _DemoAccountButton extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color:
-                            colors.onSurfaceVariant,
+                        color: colors.onSurfaceVariant,
                         fontSize: 11.5,
                       ),
                     ),
@@ -1209,11 +1032,7 @@ class _DemoAccountButton extends StatelessWidget {
 
               const SizedBox(width: 8),
 
-              Icon(
-                Icons.login_rounded,
-                color: primary,
-                size: 20,
-              ),
+              Icon(Icons.login_rounded, color: primary, size: 20),
             ],
           ),
         ),

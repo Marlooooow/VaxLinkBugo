@@ -1,7 +1,7 @@
-import '../models/child/child_profile.dart';
-import '../models/external_vaccination/external_vaccination_correction.dart';
-import '../models/external_vaccination/external_vaccination_record.dart';
-import '../models/external_vaccination/external_vaccination_visit.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_record.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_visit.dart';
 import '../models/referral.dart';
 import '../models/referral_group.dart';
 import '../models/referral_verification_result.dart';

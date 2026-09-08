@@ -129,9 +129,7 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
     );
     if (reset) _loadedItems.clear();
     final knownIds = _loadedItems.map((item) => item.id).toSet();
-    _loadedItems.addAll(
-      page.items.where((item) => knownIds.add(item.id)),
-    );
+    _loadedItems.addAll(page.items.where((item) => knownIds.add(item.id)));
     _overallCount = page.overallCount;
     _totalCount = page.totalCount;
     _unreadCount = page.unreadCount;
@@ -412,9 +410,9 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
                               'Showing ${visible.length} of ${page?.totalCount ?? 0}',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                                 fontSize: 12,
                               ),
                             ),

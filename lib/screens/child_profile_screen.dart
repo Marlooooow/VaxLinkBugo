@@ -1,7 +1,7 @@
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
-import '../models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import '../models/pnip_schedule_entry.dart';
 import '../models/vaccination_assessment.dart';
 import '../repositories/vaccination_repository.dart';
@@ -434,10 +434,7 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
       decoration: BoxDecoration(
         color: rowColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: borderColor,
-          width: highlighted ? 1.5 : 1,
-        ),
+        border: Border.all(color: borderColor, width: highlighted ? 1.5 : 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,

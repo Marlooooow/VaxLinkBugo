@@ -15,10 +15,7 @@ import 'child_profile_screen.dart';
 class VaccinationRecordsScreen extends StatefulWidget {
   final AppUser healthWorker;
 
-  const VaccinationRecordsScreen({
-    super.key,
-    required this.healthWorker,
-  });
+  const VaccinationRecordsScreen({super.key, required this.healthWorker});
 
   @override
   State<VaccinationRecordsScreen> createState() =>
@@ -32,8 +29,7 @@ class _VaccinationRecordsScreenState extends State<VaccinationRecordsScreen> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   final List<VaccinationRecordSummary> _records = [];
-  VaccinationRecordSummaryFilter _filter =
-      VaccinationRecordSummaryFilter.all;
+  VaccinationRecordSummaryFilter _filter = VaccinationRecordSummaryFilter.all;
   VaccinationRecordSummaryCursor? _cursor;
   Timer? _searchDebounce;
   Object? _error;
@@ -197,10 +193,7 @@ class _VaccinationRecordsScreenState extends State<VaccinationRecordsScreen> {
                   const SizedBox(height: 12),
                   _FilterBar(selected: _filter, onSelected: _selectFilter),
                   const SizedBox(height: 14),
-                  _OverviewBar(
-                    loaded: _records.length,
-                    total: _totalCount,
-                  ),
+                  _OverviewBar(loaded: _records.length, total: _totalCount),
                   const SizedBox(height: 14),
                   if (_error != null && _records.isEmpty)
                     _RecordsError(error: _error!, onRetry: _fetchFirstPage)
@@ -410,8 +403,18 @@ class _ChildRecordCard extends StatelessWidget {
 
   String _date(DateTime value) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[value.month - 1]} ${value.day}, ${value.year}';
   }
@@ -425,20 +428,16 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
+    ),
+  );
 }
 
 class _Metric extends StatelessWidget {
@@ -509,24 +508,24 @@ class _EmptyRecords extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 50),
-        child: Column(
-          children: [
-            Icon(
-              Icons.search_off_rounded,
-              size: 46,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'No matching vaccination records',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            const Text('Try another search or status filter.'),
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 50),
+    child: Column(
+      children: [
+        Icon(
+          Icons.search_off_rounded,
+          size: 46,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
-      );
+        const SizedBox(height: 12),
+        const Text(
+          'No matching vaccination records',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        const Text('Try another search or status filter.'),
+      ],
+    ),
+  );
 }
 
 class _RecordsError extends StatelessWidget {
@@ -537,25 +536,25 @@ class _RecordsError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 44),
-        child: Column(
-          children: [
-            const Icon(Icons.error_outline_rounded, size: 42),
-            const SizedBox(height: 12),
-            Text(
-              UserFacingError.message(
-                error,
-                fallback: 'Vaccination records could not be loaded.',
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try again'),
-            ),
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 44),
+    child: Column(
+      children: [
+        const Icon(Icons.error_outline_rounded, size: 42),
+        const SizedBox(height: 12),
+        Text(
+          UserFacingError.message(
+            error,
+            fallback: 'Vaccination records could not be loaded.',
+          ),
+          textAlign: TextAlign.center,
         ),
-      );
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Try again'),
+        ),
+      ],
+    ),
+  );
 }

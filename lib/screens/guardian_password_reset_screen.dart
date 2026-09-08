@@ -66,9 +66,9 @@ class _GuardianPasswordResetScreenState
                 Row(
                   children: [
                     CircleAvatar(
-                      backgroundColor: Theme.of(context)
-                          .colorScheme
-                          .errorContainer,
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.errorContainer,
                       child: Icon(
                         Icons.lock_reset_rounded,
                         color: Theme.of(context).colorScheme.onErrorContainer,
@@ -87,13 +87,25 @@ class _GuardianPasswordResetScreenState
                   ],
                 ),
                 const SizedBox(height: 22),
-                const Text('Request details', style: TextStyle(fontWeight: FontWeight.w800)),
+                const Text(
+                  'Request details',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 8),
                 Text(widget.notification.body),
                 const SizedBox(height: 14),
-                _Detail(label: 'Notification ID', value: widget.notification.id),
-                _Detail(label: 'Reset request ID', value: widget.notification.entityId ?? 'Unavailable'),
-                _Detail(label: 'Received', value: widget.notification.createdAt.toLocal().toString()),
+                _Detail(
+                  label: 'Notification ID',
+                  value: widget.notification.id,
+                ),
+                _Detail(
+                  label: 'Reset request ID',
+                  value: widget.notification.entityId ?? 'Unavailable',
+                ),
+                _Detail(
+                  label: 'Received',
+                  value: widget.notification.createdAt.toLocal().toString(),
+                ),
               ],
             ),
           ),
@@ -155,7 +167,15 @@ class _Detail extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(width: 130, child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+        SizedBox(
+          width: 130,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
         Expanded(child: SelectableText(value)),
       ],
     ),

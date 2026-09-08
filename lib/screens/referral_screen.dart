@@ -1,7 +1,7 @@
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
-import '../models/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import '../models/referral.dart';
 import '../models/vaccine_inventory.dart';
 import '../repositories/referral_repository.dart';

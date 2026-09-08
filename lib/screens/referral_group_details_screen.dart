@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../models/external_vaccination_record.dart';
-import '../models/external_vaccination_visit.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_record.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_visit.dart';
 import '../models/referral.dart';
 import '../models/referral_verification_result.dart';
 import '../repositories/referral_repository.dart';

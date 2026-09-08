@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../models/guardian/guardian_invitation.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_invitation.dart';
 
 Future<void> showGuardianActivationCodeDialog(
   BuildContext context,

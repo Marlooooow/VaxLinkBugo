@@ -8,14 +8,8 @@ void main() {
     final insights = await repository.getFacilityInsights();
 
     expect(insights, isNotEmpty);
-    expect(
-      insights.every((item) => item.sourceEntityIds.isNotEmpty),
-      isTrue,
-    );
-    expect(
-      insights.every((item) => item.analysisProvider.isNotEmpty),
-      isTrue,
-    );
+    expect(insights.every((item) => item.sourceEntityIds.isNotEmpty), isTrue);
+    expect(insights.every((item) => item.analysisProvider.isNotEmpty), isTrue);
     expect(
       insights.every((item) => item.status == AdvisoryInsightStatus.newInsight),
       isTrue,

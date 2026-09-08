@@ -1,5 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import '../models/first_visit_review.dart';
 import '../models/pnip_schedule_entry.dart';
 import '../models/pnip_schedule_rule.dart';

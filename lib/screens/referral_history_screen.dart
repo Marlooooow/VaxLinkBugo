@@ -57,10 +57,7 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
 
   void _onSearchChanged() {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(
-      const Duration(milliseconds: 350),
-      _loadFirstPage,
-    );
+    _searchDebounce = Timer(const Duration(milliseconds: 350), _loadFirstPage);
     setState(() {});
   }
 
@@ -113,9 +110,7 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
       final page = await _fetchPage(_nextOffset);
       if (!mounted || version != _requestVersion) return;
       setState(() {
-        final existing = _groups
-            .map((group) => group.referralGroupId)
-            .toSet();
+        final existing = _groups.map((group) => group.referralGroupId).toSet();
         _groups.addAll(
           page.items.where((group) => existing.add(group.referralGroupId)),
         );
@@ -275,16 +270,13 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
             selected:
                 _filter == ReferralGroupStatus.partiallyCompleted &&
                 !_overdueOnly,
-            onTap: () => _selectSummary(
-              ReferralGroupStatus.partiallyCompleted,
-            ),
+            onTap: () => _selectSummary(ReferralGroupStatus.partiallyCompleted),
           ),
           _summaryCard(
             'Completed',
             _summaryCounts.completed,
             Colors.green,
-            selected:
-                _filter == ReferralGroupStatus.completed && !_overdueOnly,
+            selected: _filter == ReferralGroupStatus.completed && !_overdueOnly,
             onTap: () => _selectSummary(ReferralGroupStatus.completed),
           ),
           _summaryCard(
@@ -433,10 +425,7 @@ class _ReferralHistoryScreenState extends State<ReferralHistoryScreen> {
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
-          Text(
-            UserFacingError.message(_error!),
-            textAlign: TextAlign.center,
-          ),
+          Text(UserFacingError.message(_error!), textAlign: TextAlign.center),
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: _loadFirstPage,

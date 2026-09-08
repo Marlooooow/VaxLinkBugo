@@ -7,8 +7,7 @@ import 'child_repository.dart';
 import 'vaccination_records_repository.dart';
 import 'vaccination_repository.dart';
 
-class MockVaccinationRecordsRepository
-    implements VaccinationRecordsRepository {
+class MockVaccinationRecordsRepository implements VaccinationRecordsRepository {
   final ChildRepository _children;
   final VaccinationRepository _vaccinations;
 
@@ -17,8 +16,7 @@ class MockVaccinationRecordsRepository
   @override
   Future<VaccinationRecordSummaryPage> getSummaries({
     String search = '',
-    VaccinationRecordSummaryFilter filter =
-        VaccinationRecordSummaryFilter.all,
+    VaccinationRecordSummaryFilter filter = VaccinationRecordSummaryFilter.all,
     int pageSize = 20,
     VaccinationRecordSummaryCursor? cursor,
   }) async {
@@ -69,7 +67,8 @@ class MockVaccinationRecordsRepository
 
     final normalized = search.trim().toLowerCase();
     final filtered = summaries.where((summary) {
-      final searchMatches = normalized.isEmpty ||
+      final searchMatches =
+          normalized.isEmpty ||
           summary.child.fullName.toLowerCase().contains(normalized) ||
           summary.child.id.toLowerCase().contains(normalized) ||
           summary.child.qrIdentifier.toLowerCase().contains(normalized) ||

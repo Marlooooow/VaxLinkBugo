@@ -1,11 +1,11 @@
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
-import '../models/child_profile.dart';
-import '../models/child_correction.dart';
-import '../models/guardian_registration.dart';
-import '../models/guardian_profile.dart';
-import '../models/guardian_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_registration.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_correction.dart';
 import '../models/vaccination_schedule_state.dart';
 import '../repositories/child_repository.dart';
 import '../repositories/guardian_invitation_repository.dart';
@@ -231,15 +231,23 @@ class _RegisteredFamilyDetailsScreenState
           'A temporary password will be generated. The guardian must change it after signing in.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Reset password')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Reset password'),
+          ),
         ],
       ),
     );
     if (confirmed != true || !mounted) return;
     setState(() => _resettingGuardianPassword = true);
     try {
-      final password = await RepositoryRegistry.instance.staffNotificationRepository
+      final password = await RepositoryRegistry
+          .instance
+          .staffNotificationRepository
           .resetGuardianPasswordForGuardian(guardian.id);
       if (!mounted) return;
       await showDialog<void>(
@@ -250,14 +258,18 @@ class _RegisteredFamilyDetailsScreenState
             'Guardian ID / Login ID:\n${guardian.guardianCode}\n\nTemporary password:\n$password\n\nGive these privately to the guardian. They must change the password after signing in.',
           ),
           actions: [
-            FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Done')),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Done'),
+            ),
           ],
         ),
       );
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Password reset failed: $error')),
-      );
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Password reset failed: $error')),
+        );
     } finally {
       if (mounted) setState(() => _resettingGuardianPassword = false);
     }
@@ -583,9 +595,7 @@ class _DetailsCard extends StatelessWidget {
     decoration: BoxDecoration(
       color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(
-        color: Theme.of(context).colorScheme.outlineVariant,
-      ),
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

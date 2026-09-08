@@ -2,7 +2,7 @@ import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
-import '../models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import '../models/vaccination_schedule_state.dart';
 import '../repositories/child_repository.dart';
 import '../theme/status_colors.dart';
@@ -182,8 +182,7 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
                     children: [
                       _StatusFilter(
                         label: 'All',
-                        selected:
-                            _filter == null && !_dashboardSelectionActive,
+                        selected: _filter == null && !_dashboardSelectionActive,
                         onSelected: () => setState(() {
                           _filter = null;
                           _dashboardSelectionActive = false;

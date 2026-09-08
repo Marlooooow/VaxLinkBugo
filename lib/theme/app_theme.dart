@@ -42,38 +42,39 @@ class AppTheme {
     final mutedForeground = isDark ? darkMutedText : mutedInk;
     final borderColor = isDark ? darkOutline : outline;
     final primary = isDark ? darkHighlight : primaryBlue;
-    final primaryContainer = isDark
-        ? const Color(0xFF263A5B)
-        : softBlue;
+    final primaryContainer = isDark ? const Color(0xFF263A5B) : softBlue;
     final onPrimaryContainer = isDark
         ? const Color(0xFFDCE8FF)
         : const Color(0xFF284D8E);
 
-    final scheme = ColorScheme.fromSeed(
-      seedColor: primaryBlue,
-      brightness: brightness,
-    ).copyWith(
-      primary: primary,
-      onPrimary: isDark ? const Color(0xFF0C1C35) : Colors.white,
-      secondary: isDark ? const Color(0xFFAFC5ED) : secondaryBlue,
-      onSecondary: isDark ? const Color(0xFF17243B) : Colors.white,
-      surface: surfaceColor,
-      onSurface: foreground,
-      onSurfaceVariant: mutedForeground,
-      primaryContainer: primaryContainer,
-      onPrimaryContainer: onPrimaryContainer,
-      outline: isDark ? const Color(0xFF788596) : const Color(0xFF7A8799),
-      outlineVariant: borderColor,
-      surfaceContainerLowest: isDark ? const Color(0xFF0C1016) : Colors.white,
-      surfaceContainerLow: surfaceColor,
-      surfaceContainer: raisedSurface,
-      surfaceContainerHigh: isDark
-          ? const Color(0xFF28313E)
-          : const Color(0xFFEEF2F8),
-      surfaceContainerHighest: isDark
-          ? const Color(0xFF303A48)
-          : const Color(0xFFE7ECF4),
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: primaryBlue,
+          brightness: brightness,
+        ).copyWith(
+          primary: primary,
+          onPrimary: isDark ? const Color(0xFF0C1C35) : Colors.white,
+          secondary: isDark ? const Color(0xFFAFC5ED) : secondaryBlue,
+          onSecondary: isDark ? const Color(0xFF17243B) : Colors.white,
+          surface: surfaceColor,
+          onSurface: foreground,
+          onSurfaceVariant: mutedForeground,
+          primaryContainer: primaryContainer,
+          onPrimaryContainer: onPrimaryContainer,
+          outline: isDark ? const Color(0xFF788596) : const Color(0xFF7A8799),
+          outlineVariant: borderColor,
+          surfaceContainerLowest: isDark
+              ? const Color(0xFF0C1016)
+              : Colors.white,
+          surfaceContainerLow: surfaceColor,
+          surfaceContainer: raisedSurface,
+          surfaceContainerHigh: isDark
+              ? const Color(0xFF28313E)
+              : const Color(0xFFEEF2F8),
+          surfaceContainerHighest: isDark
+              ? const Color(0xFF303A48)
+              : const Color(0xFFE7ECF4),
+        );
 
     final base = ThemeData(
       useMaterial3: true,
@@ -168,7 +169,10 @@ class AppTheme {
         fillColor: surfaceColor,
         labelStyle: TextStyle(color: mutedForeground),
         hintStyle: TextStyle(color: mutedForeground),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: borderColor),

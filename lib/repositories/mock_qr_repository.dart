@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import '../models/qr_scan_result.dart';
 import 'qr_repository.dart';
 import 'mock_child_repository.dart';

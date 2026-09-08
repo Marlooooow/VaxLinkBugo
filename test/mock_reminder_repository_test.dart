@@ -4,18 +4,23 @@ import 'package:qr_code_based_pediatric_vaccination/models/reminder_follow_up.da
 import 'package:qr_code_based_pediatric_vaccination/repositories/mock_reminder_repository.dart';
 
 void main() {
-  test('guardian reminders are synchronized before reading the dashboard count', () async {
-    final repository = MockReminderRepository();
-    await repository.syncGuardianReminders('USR-G-001');
-    final reminders = await repository.getGuardianReminders('USR-G-001');
+  test(
+    'guardian reminders are synchronized before reading the dashboard count',
+    () async {
+      final repository = MockReminderRepository();
+      await repository.syncGuardianReminders('USR-G-001');
+      final reminders = await repository.getGuardianReminders('USR-G-001');
 
-    expect(reminders, isNotEmpty);
-    expect(reminders.every((item) => item.guardianId == 'USR-G-001'), isTrue);
-    expect(
-      reminders.where((item) => item.status == VaccinationReminderStatus.overdue),
-      isNotEmpty,
-    );
-  });
+      expect(reminders, isNotEmpty);
+      expect(reminders.every((item) => item.guardianId == 'USR-G-001'), isTrue);
+      expect(
+        reminders.where(
+          (item) => item.status == VaccinationReminderStatus.overdue,
+        ),
+        isNotEmpty,
+      );
+    },
+  );
 
   test('health-worker queue contains only actionable reminders', () async {
     final repository = MockReminderRepository();

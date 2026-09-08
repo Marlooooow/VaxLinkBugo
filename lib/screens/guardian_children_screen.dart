@@ -2,8 +2,8 @@ import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
-import '../models/child_profile.dart';
-import '../models/child_link_request.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_link_request.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/child_repository.dart';
 import 'child_profile_screen.dart';
@@ -609,9 +609,7 @@ class _LoadingCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: const AppLoadingView(
         title: 'Loading child records',
@@ -633,9 +631,7 @@ class _EmptyCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-        ),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: const Column(
         children: [

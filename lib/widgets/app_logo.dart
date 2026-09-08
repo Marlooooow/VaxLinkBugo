@@ -4,11 +4,7 @@ class AppLogo extends StatelessWidget {
   final double size;
   final bool showLabel;
 
-  const AppLogo({
-    super.key,
-    this.size = 76,
-    this.showLabel = true,
-  });
+  const AppLogo({super.key, this.size = 76, this.showLabel = true});
 
   @override
   Widget build(BuildContext context) {
@@ -47,9 +43,7 @@ class AppLogo extends StatelessWidget {
             'PEDIATRIC IMMUNIZATION',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: isDarkMode
-                  ? Colors.white
-                  : const Color(0xFF334155),
+              color: isDarkMode ? Colors.white : const Color(0xFF334155),
               fontSize: 13,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.9,

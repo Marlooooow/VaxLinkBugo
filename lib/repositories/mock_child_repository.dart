@@ -1,13 +1,15 @@
-import '../models/child/child_profile.dart';
-import '../models/guardian/guardian_profile.dart';
-import '../models/guardian/guardian_correction.dart';
-import '../models/child/child_correction.dart';
-import '../models/guardian/guardian_registration.dart';
-import '../models/guardian/guardian_invitation.dart';
-import '../models/child/child_link_request.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_registration.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_invitation.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_link_request.dart';
+import '../models/vaccination_schedule_state.dart';
 import '../services/mock_identifier_generator.dart';
 import '../services/mock_scenario_clock.dart';
 import 'child_repository.dart';
+import 'mock_vaccination_repository.dart';
 
 class MockChildRepository implements ChildRepository {
   static final List<ChildProfile> _guardianAccountChildren = [
@@ -474,6 +476,91 @@ class MockChildRepository implements ChildRepository {
   }
 
   @override
+  Future<RegisteredFamilyPage> getHealthWorkerRegisteredFamiliesPage({
+    String search = '',
+    VaccinationScheduleState? status,
+    Set<String>? guardianIds,
+    int pageSize = 20,
+    DateTime? cursorCreatedAt,
+    String? cursorGuardianId,
+  }) async {
+    final normalizedSearch = search.trim().toLowerCase();
+    final families = await getHealthWorkerRegisteredFamilies();
+    final summaries = <RegisteredFamilySummary>[];
+
+    for (final family in families) {
+      if (guardianIds != null && !guardianIds.contains(family.guardian.id)) {
+        continue;
+      }
+      final matchesSearch =
+          normalizedSearch.isEmpty ||
+          family.guardian.fullName.toLowerCase().contains(normalizedSearch) ||
+          family.guardian.guardianCode.toLowerCase().contains(
+            normalizedSearch,
+          ) ||
+          family.children.any(
+            (child) =>
+                child.fullName.toLowerCase().contains(normalizedSearch) ||
+                child.id.toLowerCase().contains(normalizedSearch),
+          );
+      if (!matchesSearch) continue;
+
+      final states = <String, VaccinationScheduleState>{};
+      for (final child in family.children) {
+        final schedule = await MockVaccinationRepository()
+            .getVaccinationSchedule(child);
+        states[child.id] = summarizeSchedule(schedule);
+      }
+      if (status != null && !states.values.contains(status)) continue;
+      summaries.add(
+        RegisteredFamilySummary(family: family, childStates: states),
+      );
+    }
+
+    final totalCount = summaries.length;
+    final afterCursor = summaries
+        .where((summary) {
+          if (cursorCreatedAt == null) return true;
+          final registeredAt = summary.family.guardian.registeredAt;
+          if (registeredAt.isBefore(cursorCreatedAt)) return true;
+          if (!registeredAt.isAtSameMomentAs(cursorCreatedAt)) return false;
+          return cursorGuardianId == null ||
+              summary.family.guardian.id.compareTo(cursorGuardianId) < 0;
+        })
+        .toList(growable: false);
+    final safePageSize = pageSize.clamp(10, 50).toInt();
+    final hasMore = afterCursor.length > safePageSize;
+    final items = List<RegisteredFamilySummary>.unmodifiable(
+      afterCursor.take(safePageSize),
+    );
+
+    return RegisteredFamilyPage(
+      items: items,
+      totalCount: totalCount,
+      hasMore: hasMore,
+      nextCreatedAt: items.isEmpty
+          ? null
+          : items.last.family.guardian.registeredAt,
+      nextGuardianId: items.isEmpty ? null : items.last.family.guardian.id,
+    );
+  }
+
+  @override
+  Future<RegisteredFamily?> getHealthWorkerRegisteredFamily(
+    String guardianId,
+  ) async {
+    final families = await getHealthWorkerRegisteredFamilies();
+    for (final family in families) {
+      if (family.guardian.id == guardianId ||
+          family.guardian.guardianCode.toLowerCase() ==
+              guardianId.trim().toLowerCase()) {
+        return family;
+      }
+    }
+    return null;
+  }
+
+  @override
   Future<ExistingGuardianChildResult> addChildToExistingGuardian(
     ExistingGuardianChildRequest request,
   ) async {
@@ -561,6 +648,41 @@ class MockChildRepository implements ChildRepository {
         .toList(growable: false)
         .reversed
         .toList(growable: false);
+  }
+
+  @override
+  Future<ChildLinkRequestPage> getPendingChildLinkRequestsPage({
+    String query = '',
+    String? initialRequestId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final normalizedQuery = query.trim().toLowerCase();
+    final pending = (await getPendingChildLinkRequests())
+        .where((request) {
+          if (initialRequestId != null && request.id != initialRequestId) {
+            return false;
+          }
+          return normalizedQuery.isEmpty ||
+              request.childName.toLowerCase().contains(normalizedQuery) ||
+              request.guardianName.toLowerCase().contains(normalizedQuery) ||
+              request.requestCode.toLowerCase().contains(normalizedQuery);
+        })
+        .toList(growable: false);
+    final safeOffset = offset < 0 ? 0 : offset;
+    final safeLimit = limit.clamp(1, 50).toInt();
+    final items = safeOffset >= pending.length
+        ? const <ChildLinkRequest>[]
+        : List<ChildLinkRequest>.unmodifiable(
+            pending.skip(safeOffset).take(safeLimit),
+          );
+
+    return ChildLinkRequestPage(
+      items: items,
+      totalCount: pending.length,
+      hasMore: safeOffset + items.length < pending.length,
+      nextOffset: safeOffset + items.length,
+    );
   }
 
   @override
@@ -776,7 +898,6 @@ class MockChildRepository implements ChildRepository {
     return ChildCorrectionResult(child: updated, correction: correction);
   }
 
-  @override
   Future<GuardianProfile> activateGuardianInvitation({
     required String invitationCode,
     required String userId,

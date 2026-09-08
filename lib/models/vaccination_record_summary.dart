@@ -55,8 +55,7 @@ class VaccinationRecordSummary {
     required this.sortAt,
   });
 
-  bool get isCompleted =>
-      scheduleCount > 0 && completedCount == scheduleCount;
+  bool get isCompleted => scheduleCount > 0 && completedCount == scheduleCount;
 
   VaccinationRecordSummaryCursor get cursor =>
       VaccinationRecordSummaryCursor(sortAt: sortAt, childId: child.id);

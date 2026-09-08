@@ -1,11 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import '../models/referral.dart';
 import '../models/referral_verification_result.dart';
-import '../models/external_vaccination/external_vaccination_record.dart';
-import '../models/external_vaccination/external_vaccination_visit.dart';
-import '../models/external_vaccination/external_vaccination_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_record.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_visit.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_correction.dart';
 import '../models/referral_group.dart';
 import '../models/vaccine_inventory.dart';
 import 'referral_repository.dart';
@@ -52,11 +52,7 @@ class SupabaseReferralRepository implements ReferralRepository {
     final payload = Map<String, dynamic>.from(response as Map);
     final rows = (payload['referrals'] as List<dynamic>? ?? const []);
     return rows
-        .map(
-          (row) => Referral.fromJson(
-            Map<String, dynamic>.from(row as Map),
-          ),
-        )
+        .map((row) => Referral.fromJson(Map<String, dynamic>.from(row as Map)))
         .toList(growable: false);
   }
 
@@ -73,7 +69,9 @@ class SupabaseReferralRepository implements ReferralRepository {
   @override
   Future<List<Referral>> getReferralGroupByReferralId(String referralId) async {
     final referral = await getReferralById(referralId);
-    return referral == null ? const [] : _referralsForGroup(referral.referralGroupId);
+    return referral == null
+        ? const []
+        : _referralsForGroup(referral.referralGroupId);
   }
 
   @override
@@ -101,24 +99,69 @@ class SupabaseReferralRepository implements ReferralRepository {
     int limit = 20,
     int offset = 0,
   }) async {
-    final rows = await _client
-        .from('referral_groups')
-        .select('id')
-        .order('issued_on', ascending: false)
-        .range(offset, offset + limit - 1);
-    final groups = <ReferralGroup>[];
-    for (final row in rows) {
-      final group = await getReferralGroup(row['id'] as String);
-      if (group == null) continue;
-      final matchesQuery = query.trim().isEmpty ||
-          group.childName.toLowerCase().contains(query.trim().toLowerCase()) ||
-          group.referralGroupCode.toLowerCase().contains(query.trim().toLowerCase());
-      if (matchesQuery && (status == null || group.status == status) &&
-          (!overdueOnly || group.isOverdueOn(DateTime.now()))) {
-        groups.add(group);
-      }
-    }
-    return groups;
+    return (await getReferralGroupsPage(
+      query: query,
+      status: status,
+      overdueOnly: overdueOnly,
+      limit: limit,
+      offset: offset,
+    )).items;
+  }
+
+  @override
+  Future<ReferralGroupPage> getReferralGroupsPage({
+    String query = '',
+    ReferralGroupStatus? status,
+    bool overdueOnly = false,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final payload = Map<String, dynamic>.from(
+      await _client.rpc(
+            'get_referral_group_page',
+            params: {
+              'p_search': query.trim().isEmpty ? null : query.trim(),
+              'p_status': switch (status) {
+                ReferralGroupStatus.pending => 'pending',
+                ReferralGroupStatus.partiallyCompleted => 'partial',
+                ReferralGroupStatus.completed => 'completed',
+                null => null,
+              },
+              'p_overdue_only': overdueOnly,
+              'p_page_size': limit,
+              'p_page_offset': offset,
+            },
+          )
+          as Map,
+    );
+    final groups = (payload['items'] as List? ?? const [])
+        .map((raw) {
+          final row = Map<String, dynamic>.from(raw as Map);
+          final referrals = (row['referrals'] as List? ?? const [])
+              .map(
+                (item) =>
+                    Referral.fromJson(Map<String, dynamic>.from(item as Map)),
+              )
+              .toList(growable: false);
+          return ReferralGroup.fromJson(row, referrals: referrals);
+        })
+        .toList(growable: false);
+    final counts = Map<String, dynamic>.from(
+      payload['summary'] as Map? ?? const {},
+    );
+
+    return ReferralGroupPage(
+      items: groups,
+      totalCount: (payload['total_count'] as num?)?.toInt() ?? groups.length,
+      hasMore: payload['has_more'] as bool? ?? false,
+      nextOffset: (payload['next_offset'] as num?)?.toInt() ?? offset,
+      summary: ReferralGroupSummaryCounts(
+        pending: (counts['pending'] as num?)?.toInt() ?? 0,
+        partiallyCompleted: (counts['partial'] as num?)?.toInt() ?? 0,
+        completed: (counts['completed'] as num?)?.toInt() ?? 0,
+        overdue: (counts['overdue'] as num?)?.toInt() ?? 0,
+      ),
+    );
   }
 
   Future<List<Referral>> _referralsForGroup(String groupId) async {
@@ -134,7 +177,9 @@ class SupabaseReferralRepository implements ReferralRepository {
     final group = Map<String, dynamic>.from(row['referral_groups'] as Map);
     final child = Map<String, dynamic>.from(group['children'] as Map);
     final facility = Map<String, dynamic>.from(group['facilities'] as Map);
-    final vaccine = Map<String, dynamic>.from(row['vaccine_definitions'] as Map);
+    final vaccine = Map<String, dynamic>.from(
+      row['vaccine_definitions'] as Map,
+    );
     final issued = DateTime.parse(group['issued_on'] as String);
     return Referral(
       id: row['id'] as String,
@@ -150,9 +195,13 @@ class SupabaseReferralRepository implements ReferralRepository {
           ? issued
           : DateTime.parse(row['scheduled_due_date'] as String),
       originatingFacility: facility['name'] as String,
-      status: (row['status'] as String) == 'completed' ? 'Completed' : 'Pending',
+      status: (row['status'] as String) == 'completed'
+          ? 'Completed'
+          : 'Pending',
       createdAt: DateTime.parse(group['created_at'] as String),
-      completedAt: row['completed_at'] == null ? null : DateTime.parse(row['completed_at'] as String),
+      completedAt: row['completed_at'] == null
+          ? null
+          : DateTime.parse(row['completed_at'] as String),
     );
   }
 
@@ -161,13 +210,15 @@ class SupabaseReferralRepository implements ReferralRepository {
     required String referralGroupId,
     String? verificationToken,
   }) async {
-    final result = await _client.rpc(
-      'verify_live_referral_group',
-      params: {
-        'target_group_id': referralGroupId,
-        'supplied_token': verificationToken,
-      },
-    ) as String;
+    final result =
+        await _client.rpc(
+              'verify_live_referral_group',
+              params: {
+                'target_group_id': referralGroupId,
+                'supplied_token': verificationToken,
+              },
+            )
+            as String;
     if (result == 'not_found') {
       return const ReferralVerificationResult(
         status: ReferralVerificationStatus.notFound,
@@ -223,13 +274,18 @@ class SupabaseReferralRepository implements ReferralRepository {
       params: {
         'target_group_id': referrals.first.referralGroupId,
         'target_item_ids': referrals.map((item) => item.id).toList(),
-        'administered_on_date': first.dateAdministered.toIso8601String().split('T').first,
+        'administered_on_date': first.dateAdministered
+            .toIso8601String()
+            .split('T')
+            .first,
         'receiving_facility': first.administeringFacility,
         'receiving_worker': first.healthWorkerName,
         'visit_notes': first.notes,
       },
     );
-    return referrals.map((item) => item.copyWith(status: 'Completed')).toList(growable: false);
+    return referrals
+        .map((item) => item.copyWith(status: 'Completed'))
+        .toList(growable: false);
   }
 
   @override
@@ -250,10 +306,12 @@ class SupabaseReferralRepository implements ReferralRepository {
     if (item == null) return null;
     final row = await _client
         .from('vaccination_records')
-        .select('id, vaccination_code, child_id, vaccine_id, administered_on, '
-            'external_facility_name, external_health_worker_name, notes, recorded_at, '
-            'referral_item_id, external_visit_id, vaccine_definitions!inner(name), '
-            'external_vaccination_visits(visit_code)')
+        .select(
+          'id, vaccination_code, child_id, vaccine_id, administered_on, '
+          'external_facility_name, external_health_worker_name, notes, recorded_at, '
+          'referral_item_id, external_visit_id, vaccine_definitions!inner(name), '
+          'external_vaccination_visits(visit_code)',
+        )
         .eq('referral_item_id', item['id'])
         .maybeSingle();
     return row == null ? null : _externalRecordFromRow(row, referralId);
@@ -264,23 +322,30 @@ class SupabaseReferralRepository implements ReferralRepository {
     required ExternalVaccinationRecord record,
     required String correctionReason,
   }) async {
-    final id = await _client.rpc(
-      'correct_live_external_vaccination_record',
-      params: {
-        'target_record_id': record.recordId,
-        'target_administered_on': record.dateAdministered.toIso8601String().split('T').first,
-        'target_facility': record.administeringFacility,
-        'target_worker': record.healthWorkerName,
-        'target_notes': record.notes,
-        'correction_reason': correctionReason,
-      },
-    ) as String;
+    final id =
+        await _client.rpc(
+              'correct_live_external_vaccination_record',
+              params: {
+                'target_record_id': record.recordId,
+                'target_administered_on': record.dateAdministered
+                    .toIso8601String()
+                    .split('T')
+                    .first,
+                'target_facility': record.administeringFacility,
+                'target_worker': record.healthWorkerName,
+                'target_notes': record.notes,
+                'correction_reason': correctionReason,
+              },
+            )
+            as String;
     final row = await _client
         .from('vaccination_records')
-        .select('id, vaccination_code, child_id, vaccine_id, administered_on, '
-            'external_facility_name, external_health_worker_name, notes, recorded_at, '
-            'referral_item_id, external_visit_id, vaccine_definitions!inner(name), '
-            'external_vaccination_visits(visit_code), referral_items!inner(referral_code)')
+        .select(
+          'id, vaccination_code, child_id, vaccine_id, administered_on, '
+          'external_facility_name, external_health_worker_name, notes, recorded_at, '
+          'referral_item_id, external_visit_id, vaccine_definitions!inner(name), '
+          'external_vaccination_visits(visit_code), referral_items!inner(referral_code)',
+        )
         .eq('id', id)
         .single();
     final item = Map<String, dynamic>.from(row['referral_items'] as Map);
@@ -301,15 +366,19 @@ class SupabaseReferralRepository implements ReferralRepository {
     if (visit == null) return null;
     final rows = await _client
         .from('vaccination_records')
-        .select('id, vaccination_code, child_id, vaccine_id, administered_on, '
-            'external_facility_name, external_health_worker_name, notes, recorded_at, '
-            'referral_item_id, external_visit_id, vaccine_definitions!inner(name), '
-            'referral_items!inner(referral_code)')
+        .select(
+          'id, vaccination_code, child_id, vaccine_id, administered_on, '
+          'external_facility_name, external_health_worker_name, notes, recorded_at, '
+          'referral_item_id, external_visit_id, vaccine_definitions!inner(name), '
+          'referral_items!inner(referral_code)',
+        )
         .eq('external_visit_id', record.externalVisitId);
-    final records = rows.map((row) {
-      final item = Map<String, dynamic>.from(row['referral_items'] as Map);
-      return _externalRecordFromRow(row, item['referral_code'] as String);
-    }).toList(growable: false);
+    final records = rows
+        .map((row) {
+          final item = Map<String, dynamic>.from(row['referral_items'] as Map);
+          return _externalRecordFromRow(row, item['referral_code'] as String);
+        })
+        .toList(growable: false);
     return ExternalVaccinationVisit(
       externalVisitId: visit['id'] as String,
       visitCode: visit['visit_code'] as String? ?? 'EV-${visit['id']}',
@@ -335,29 +404,43 @@ class SupabaseReferralRepository implements ReferralRepository {
   ) async {
     final rows = await _client
         .from('vaccination_record_corrections')
-        .select('id, correction_code, reason, previous_values, updated_values, corrected_at, corrected_by, '
-            'vaccination_records!inner(external_visit_id)')
+        .select(
+          'id, correction_code, reason, previous_values, updated_values, corrected_at, corrected_by, '
+          'vaccination_records!inner(external_visit_id)',
+        )
         .eq('vaccination_records.external_visit_id', externalVisitId)
         .order('corrected_at', ascending: false);
-    return rows.map((row) => ExternalVaccinationCorrection(
-      correctionId: row['id'] as String,
-      correctionCode: row['correction_code'] as String,
-      externalVisitId: externalVisitId,
-      reason: row['reason'] as String? ?? 'Health-worker correction',
-      previousValues: Map<String, dynamic>.from(row['previous_values'] as Map),
-      updatedValues: Map<String, dynamic>.from(row['updated_values'] as Map),
-      correctedAt: DateTime.parse(row['corrected_at'] as String),
-      correctedBy: row['corrected_by'] as String?,
-    )).toList(growable: false);
+    return rows
+        .map(
+          (row) => ExternalVaccinationCorrection(
+            correctionId: row['id'] as String,
+            correctionCode: row['correction_code'] as String,
+            externalVisitId: externalVisitId,
+            reason: row['reason'] as String? ?? 'Health-worker correction',
+            previousValues: Map<String, dynamic>.from(
+              row['previous_values'] as Map,
+            ),
+            updatedValues: Map<String, dynamic>.from(
+              row['updated_values'] as Map,
+            ),
+            correctedAt: DateTime.parse(row['corrected_at'] as String),
+            correctedBy: row['corrected_by'] as String?,
+          ),
+        )
+        .toList(growable: false);
   }
 
   ExternalVaccinationRecord _externalRecordFromRow(
     Map<String, dynamic> row,
     String referralCode,
   ) {
-    final vaccine = Map<String, dynamic>.from(row['vaccine_definitions'] as Map);
+    final vaccine = Map<String, dynamic>.from(
+      row['vaccine_definitions'] as Map,
+    );
     final visit = row['external_vaccination_visits'];
-    final visitMap = visit is Map ? Map<String, dynamic>.from(visit) : const <String, dynamic>{};
+    final visitMap = visit is Map
+        ? Map<String, dynamic>.from(visit)
+        : const <String, dynamic>{};
     return ExternalVaccinationRecord(
       recordId: row['id'] as String,
       recordCode: row['vaccination_code'] as String,

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../models/child/child_link_request.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_link_request.dart';
 import '../utils/user_facing_error.dart';
-import '../models/guardian/guardian_relationship_options.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_relationship_options.dart';
 import '../models/person_name.dart';
 import '../repositories/child_repository.dart';
 

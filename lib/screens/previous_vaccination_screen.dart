@@ -1,7 +1,7 @@
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
-import '../models/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import '../models/pnip_schedule_entry.dart';
 import '../models/vaccination_assessment.dart';
 import '../models/vaccination_record.dart';
@@ -90,13 +90,11 @@ class _PreviousVaccinationScreenState extends State<PreviousVaccinationScreen> {
     }
     setState(() => _saving = true);
     try {
-      final identity = RepositoryRegistry.instance.environment.isLive
-          ? null
-          : MockIdentifierGenerator.next(prefix: 'VAX');
+      final identity = MockIdentifierGenerator.next(prefix: 'VAX');
       await _repository.recordVaccinations([
         VaccinationRecord(
-          id: identity?.id ?? '',
-          recordCode: identity?.code ?? '',
+          id: identity.id,
+          recordCode: identity.code,
           childId: widget.child.id,
           vaccineId: dose.vaccineId,
           vaccineName: dose.vaccineName,

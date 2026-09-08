@@ -1,6 +1,6 @@
-import '../child/child_profile.dart';
-import 'guardian_profile.dart';
-import 'guardian_invitation.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_invitation.dart';
 import '../person_name.dart';
 
 class GuardianRegistrationRequest {

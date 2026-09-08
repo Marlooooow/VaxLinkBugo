@@ -3,10 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/guardian_registration.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/guardian_invitation.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/guardian_correction.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/child_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_registration.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_invitation.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_correction.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/person_name.dart';
 import 'package:qr_code_based_pediatric_vaccination/repositories/supabase_child_repository.dart';
 

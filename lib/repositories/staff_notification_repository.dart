@@ -54,11 +54,15 @@ class UnavailableStaffNotificationRepository
   @override
   bool isRead(String userId, String notificationId) => false;
   @override
-  Future<void> markRead(String userId, Iterable<String> notificationIds) async {}
+  Future<void> markRead(
+    String userId,
+    Iterable<String> notificationIds,
+  ) async {}
   @override
   Future<String> resetGuardianPassword(String requestId) async => 'guardian123';
   @override
-  Future<String> resetGuardianPasswordForGuardian(String guardianId) async => 'guardian123';
+  Future<String> resetGuardianPasswordForGuardian(String guardianId) async =>
+      'guardian123';
 }
 
 /// In-app prototype adapter. Source records remain owned by their repositories.
@@ -109,7 +113,8 @@ class MockStaffNotificationRepository implements StaffNotificationRepository {
   @override
   Future<String> resetGuardianPassword(String requestId) async => 'guardian123';
   @override
-  Future<String> resetGuardianPasswordForGuardian(String guardianId) async => 'guardian123';
+  Future<String> resetGuardianPasswordForGuardian(String guardianId) async =>
+      'guardian123';
 
   @override
   Future<List<StaffNotification>> load() async {
@@ -317,19 +322,19 @@ class SupabaseStaffNotificationRepository
   }) async {
     final payload = Map<String, dynamic>.from(
       await _client.rpc(
-        'get_staff_notification_page',
-        params: {
-          'p_unread_only': unreadOnly,
-          'p_page_size': limit,
-          'p_page_offset': offset,
-        },
-      ) as Map,
+            'get_staff_notification_page',
+            params: {
+              'p_unread_only': unreadOnly,
+              'p_page_size': limit,
+              'p_page_offset': offset,
+            },
+          )
+          as Map,
     );
     final items = (payload['items'] as List? ?? const [])
         .map(
-          (row) => StaffNotification.fromJson(
-            Map<String, dynamic>.from(row as Map),
-          ),
+          (row) =>
+              StaffNotification.fromJson(Map<String, dynamic>.from(row as Map)),
         )
         .toList(growable: false);
     if (offset == 0) _readIds.clear();
@@ -338,8 +343,7 @@ class SupabaseStaffNotificationRepository
     );
     return StaffNotificationPage(
       items: items,
-      overallCount:
-          (payload['overall_count'] as num?)?.toInt() ?? items.length,
+      overallCount: (payload['overall_count'] as num?)?.toInt() ?? items.length,
       totalCount: (payload['total_count'] as num?)?.toInt() ?? items.length,
       unreadCount: (payload['unread_count'] as num?)?.toInt() ?? 0,
       hasMore: payload['has_more'] as bool? ?? false,
@@ -354,8 +358,7 @@ class SupabaseStaffNotificationRepository
     final profileId = _client.auth.currentUser?.id;
     if (profileId == null) throw StateError('Please sign in again.');
     await _client.from('staff_notification_receipts').upsert([
-      for (final id in ids)
-        {'profile_id': profileId, 'notification_id': id},
+      for (final id in ids) {'profile_id': profileId, 'notification_id': id},
     ]);
     _readIds.addAll(ids);
     _changes.value++;
@@ -409,7 +412,8 @@ class SupabaseStaffNotificationRepository
       StaffNotificationTarget target, {
       String? entityId,
       DateTime? at,
-    }) add,
+    })
+    add,
   ) async {
     try {
       final items = await _client.rpc('get_pending_guardian_password_resets');

@@ -68,7 +68,8 @@ class _Repository implements StaffNotificationRepository {
   Future<String> resetGuardianPassword(String requestId) async => 'guardian123';
 
   @override
-  Future<String> resetGuardianPasswordForGuardian(String guardianId) async => 'guardian123';
+  Future<String> resetGuardianPasswordForGuardian(String guardianId) async =>
+      'guardian123';
 }
 
 void main() {

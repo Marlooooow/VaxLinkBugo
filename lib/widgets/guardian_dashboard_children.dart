@@ -1,6 +1,6 @@
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
-import '../models/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import '../models/pnip_schedule_entry.dart';
 import '../repositories/child_repository.dart';
 import '../repositories/vaccination_repository.dart';
@@ -37,7 +37,10 @@ class GuardianDashboardChildren extends StatefulWidget {
 
 class _GuardianDashboardChildrenState extends State<GuardianDashboardChildren> {
   String? _selectedChildId;
-  late Future<List<(ChildProfile, List<PnipScheduleEntry>, List<VaccinationReminder>)>> _rows;
+  late Future<
+    List<(ChildProfile, List<PnipScheduleEntry>, List<VaccinationReminder>)>
+  >
+  _rows;
   @override
   void initState() {
     super.initState();
@@ -98,55 +101,71 @@ class _GuardianDashboardChildrenState extends State<GuardianDashboardChildren> {
     widget.onChanged();
   }
 
-  Future<List<(ChildProfile, List<PnipScheduleEntry>, List<VaccinationReminder>)>> _load() async {
-    final children = await (widget.children ?? RepositoryRegistry.instance.childRepository)
-        .getChildrenForGuardian(widget.guardianId);
-    final vaccinations = widget.vaccinations ?? RepositoryRegistry.instance.vaccinationRepository;
-    final reminders = widget.reminders ?? RepositoryRegistry.instance.reminderRepository;
-    final reminderRows = await reminders.getGuardianReminders(widget.guardianId);
+  Future<
+    List<(ChildProfile, List<PnipScheduleEntry>, List<VaccinationReminder>)>
+  >
+  _load() async {
+    final children =
+        await (widget.children ?? RepositoryRegistry.instance.childRepository)
+            .getChildrenForGuardian(widget.guardianId);
+    final vaccinations =
+        widget.vaccinations ??
+        RepositoryRegistry.instance.vaccinationRepository;
+    final reminders =
+        widget.reminders ?? RepositoryRegistry.instance.reminderRepository;
+    final reminderRows = await reminders.getGuardianReminders(
+      widget.guardianId,
+    );
     final scheduleByChild = <String, List<PnipScheduleEntry>>{};
     for (final child in children) {
-      scheduleByChild[child.id] = await vaccinations.getVaccinationSchedule(child);
+      scheduleByChild[child.id] = await vaccinations.getVaccinationSchedule(
+        child,
+      );
     }
     return Future.wait(
       children.map((child) async {
-        final schedule = scheduleByChild[child.id] ?? const <PnipScheduleEntry>[];
-        final childReminders = reminderRows.where((item) => item.childId == child.id).toList();
+        final schedule =
+            scheduleByChild[child.id] ?? const <PnipScheduleEntry>[];
+        final childReminders = reminderRows
+            .where((item) => item.childId == child.id)
+            .toList();
         final mappedSchedule = schedule.map((entry) {
-            final matchingReminder = childReminders.firstWhere(
-              (reminder) => reminder.vaccineId == entry.vaccineId && reminder.doseNumber == entry.doseNumber,
-              orElse: () => VaccinationReminder(
-                id: '',
-                reminderCode: '',
-                guardianId: '',
-                childId: '',
-                childName: '',
-                vaccineId: '',
-                vaccineName: '',
-                doseNumber: 0,
-                dueDate: DateTime(1970),
-                status: VaccinationReminderStatus.upcoming,
-                channel: VaccinationReminderChannel.inApp,
-                isRead: false,
-                createdAt: DateTime(1970),
-                updatedAt: DateTime(1970),
-              ),
-            );
-            if (matchingReminder.id.isEmpty) return entry;
-            return PnipScheduleEntry(
-              vaccineId: entry.vaccineId,
-              vaccineName: entry.vaccineName,
-              doseNumber: entry.doseNumber,
-              scheduledDate: entry.scheduledDate,
-              status: switch (matchingReminder.status) {
-                VaccinationReminderStatus.completed => PnipDoseStatus.completed,
-                VaccinationReminderStatus.overdue => PnipDoseStatus.overdue,
-                VaccinationReminderStatus.dueToday => PnipDoseStatus.due,
-                VaccinationReminderStatus.upcoming => PnipDoseStatus.upcoming,
-                VaccinationReminderStatus.dismissed => PnipDoseStatus.completed,
-              },
-            );
-          }).toList();
+          final matchingReminder = childReminders.firstWhere(
+            (reminder) =>
+                reminder.vaccineId == entry.vaccineId &&
+                reminder.doseNumber == entry.doseNumber,
+            orElse: () => VaccinationReminder(
+              id: '',
+              reminderCode: '',
+              guardianId: '',
+              childId: '',
+              childName: '',
+              vaccineId: '',
+              vaccineName: '',
+              doseNumber: 0,
+              dueDate: DateTime(1970),
+              status: VaccinationReminderStatus.upcoming,
+              channel: VaccinationReminderChannel.inApp,
+              isRead: false,
+              createdAt: DateTime(1970),
+              updatedAt: DateTime(1970),
+            ),
+          );
+          if (matchingReminder.id.isEmpty) return entry;
+          return PnipScheduleEntry(
+            vaccineId: entry.vaccineId,
+            vaccineName: entry.vaccineName,
+            doseNumber: entry.doseNumber,
+            scheduledDate: entry.scheduledDate,
+            status: switch (matchingReminder.status) {
+              VaccinationReminderStatus.completed => PnipDoseStatus.completed,
+              VaccinationReminderStatus.overdue => PnipDoseStatus.overdue,
+              VaccinationReminderStatus.dueToday => PnipDoseStatus.due,
+              VaccinationReminderStatus.upcoming => PnipDoseStatus.upcoming,
+              VaccinationReminderStatus.dismissed => PnipDoseStatus.completed,
+            },
+          );
+        }).toList();
         return (child, mappedSchedule, childReminders);
       }),
     );

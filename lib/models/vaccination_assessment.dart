@@ -1,4 +1,4 @@
-import 'child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import 'pnip_schedule_entry.dart';
 import 'vaccination_record.dart';
 

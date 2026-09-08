@@ -32,7 +32,7 @@ class VaccinationAppointmentsScreen extends StatefulWidget {
     this.guardianAuthRepository,
   }) : healthWorkerMode = false,
        waitlistVaccineId = null,
-    waitlistOnly = false;
+       waitlistOnly = false;
 
   const VaccinationAppointmentsScreen.healthWorker({
     super.key,
@@ -80,14 +80,16 @@ class _VaccinationAppointmentsScreenState
                 limit: 1,
               )
               .then((page) => page.pendingCount)
-        : _repository.getGuardianSlotOffers(widget.guardianId!).then(
-            (offers) => offers
-                .where(
-                  (offer) =>
-                      offer.status == AppointmentSlotOfferStatus.pending,
-                )
-                .length,
-          );
+        : _repository
+              .getGuardianSlotOffers(widget.guardianId!)
+              .then(
+                (offers) => offers
+                    .where(
+                      (offer) =>
+                          offer.status == AppointmentSlotOfferStatus.pending,
+                    )
+                    .length,
+              );
   }
 
   Future<List<VaccinationAppointment>> _loadAppointmentPage({

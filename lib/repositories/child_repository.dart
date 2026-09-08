@@ -1,10 +1,10 @@
-import '../models/child_profile.dart';
-import '../models/guardian_registration.dart';
-import '../models/guardian_profile.dart';
-import '../models/guardian_correction.dart';
-import '../models/child_correction.dart';
-import '../models/guardian_invitation.dart';
-import '../models/child_link_request.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_registration.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_invitation.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_link_request.dart';
 import '../models/vaccination_schedule_state.dart';
 
 class RegisteredFamily {

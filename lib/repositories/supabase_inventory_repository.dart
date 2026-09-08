@@ -41,8 +41,8 @@ class SupabaseInventoryRepository implements InventoryRepository {
     final rows = await _client.rpc('get_inventory_attention_counts') as List;
     return {
       for (final raw in rows)
-        (raw as Map)['vaccine_id'] as String:
-            ((raw)['attention_count'] as num).toInt(),
+        (raw as Map)['vaccine_id'] as String: ((raw)['attention_count'] as num)
+            .toInt(),
     };
   }
 

@@ -1,9 +1,9 @@
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
-import '../models/guardian_correction.dart';
-import '../models/guardian_profile.dart';
-import '../models/guardian_relationship_options.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_relationship_options.dart';
 import '../repositories/child_repository.dart';
 import '../utils/user_facing_error.dart';
 import '../models/person_name.dart';

@@ -44,7 +44,7 @@ void main() {
     expect(result.child.qrIdentifier, startsWith('QR-CH-'));
     expect(result.link.relationship, 'Aunt');
     expect(result.link.authorizationConfirmed, isTrue);
-    expect(result.children, hasLength(2));  
+    expect(result.children, hasLength(2));
   });
 
   test('rejects a future child birth date', () async {

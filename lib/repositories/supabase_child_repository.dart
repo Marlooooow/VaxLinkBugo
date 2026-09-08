@@ -1,11 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/child_profile.dart';
-import '../models/child_correction.dart';
-import '../models/child_link_request.dart';
-import '../models/guardian_correction.dart';
-import '../models/guardian_profile.dart';
-import '../models/guardian_registration.dart';
-import '../models/guardian_invitation.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_link_request.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_correction.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_registration.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_invitation.dart';
 import '../models/vaccination_schedule_state.dart';
 import 'child_repository.dart';
 import 'guardian_invitation_repository.dart';
@@ -78,45 +78,49 @@ class SupabaseChildRepository
         .toList(growable: false);
     final hasMore = rows.length > safePageSize;
     final pageRows = hasMore ? rows.take(safePageSize) : rows;
-    final items = pageRows.map((row) {
-      final guardian = guardianFromRow(
-        Map<String, dynamic>.from(row['guardian'] as Map),
-      );
-      final children = <ChildProfile>[];
-      final states = <String, VaccinationScheduleState>{};
-      for (final raw in row['child_summaries'] as List? ?? const []) {
-        final summary = Map<String, dynamic>.from(raw as Map);
-        final child = childFromRow(
-          Map<String, dynamic>.from(summary['child'] as Map),
-          relationship: LiveDataAccess.relationship(
-            summary['relationship'] as String,
-            guardian.sex,
-          ),
-        );
-        children.add(child);
-        states[child.id] = switch (summary['schedule_state']) {
-          'completed' => VaccinationScheduleState.completed,
-          'due_now' => VaccinationScheduleState.dueNow,
-          'overdue' => VaccinationScheduleState.overdue,
-          _ => VaccinationScheduleState.upcoming,
-        };
-      }
-      return RegisteredFamilySummary(
-        family: RegisteredFamily(
-          guardian: guardian,
-          children: children,
-          links: const [],
-        ),
-        childStates: states,
-      );
-    }).toList(growable: false);
+    final items = pageRows
+        .map((row) {
+          final guardian = guardianFromRow(
+            Map<String, dynamic>.from(row['guardian'] as Map),
+          );
+          final children = <ChildProfile>[];
+          final states = <String, VaccinationScheduleState>{};
+          for (final raw in row['child_summaries'] as List? ?? const []) {
+            final summary = Map<String, dynamic>.from(raw as Map);
+            final child = childFromRow(
+              Map<String, dynamic>.from(summary['child'] as Map),
+              relationship: LiveDataAccess.relationship(
+                summary['relationship'] as String,
+                guardian.sex,
+              ),
+            );
+            children.add(child);
+            states[child.id] = switch (summary['schedule_state']) {
+              'completed' => VaccinationScheduleState.completed,
+              'due_now' => VaccinationScheduleState.dueNow,
+              'overdue' => VaccinationScheduleState.overdue,
+              _ => VaccinationScheduleState.upcoming,
+            };
+          }
+          return RegisteredFamilySummary(
+            family: RegisteredFamily(
+              guardian: guardian,
+              children: children,
+              links: const [],
+            ),
+            childStates: states,
+          );
+        })
+        .toList(growable: false);
     return RegisteredFamilyPage(
       items: items,
       totalCount: rows.isEmpty
           ? 0
           : (rows.first['total_count'] as num?)?.toInt() ?? items.length,
       hasMore: hasMore,
-      nextCreatedAt: items.isEmpty ? null : items.last.family.guardian.registeredAt,
+      nextCreatedAt: items.isEmpty
+          ? null
+          : items.last.family.guardian.registeredAt,
       nextGuardianId: items.isEmpty ? null : items.last.family.guardian.id,
     );
   }
@@ -194,19 +198,18 @@ class SupabaseChildRepository
   }) async {
     final payload = Map<String, dynamic>.from(
       await _client.rpc(
-        'get_pending_child_link_request_page',
-        params: {
-          'p_search': query.trim().isEmpty ? null : query.trim(),
-          'p_request_id': initialRequestId,
-          'p_page_size': limit,
-          'p_page_offset': offset,
-        },
-      ) as Map,
+            'get_pending_child_link_request_page',
+            params: {
+              'p_search': query.trim().isEmpty ? null : query.trim(),
+              'p_request_id': initialRequestId,
+              'p_page_size': limit,
+              'p_page_offset': offset,
+            },
+          )
+          as Map,
     );
     final items = (payload['items'] as List? ?? const [])
-        .map(
-          (row) => requestFromRow(Map<String, dynamic>.from(row as Map)),
-        )
+        .map((row) => requestFromRow(Map<String, dynamic>.from(row as Map)))
         .toList(growable: false);
     return ChildLinkRequestPage(
       items: items,

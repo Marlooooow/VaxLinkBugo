@@ -102,20 +102,16 @@ class _QrScanScreenState extends State<QrScanScreen> {
 
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => QrScanResultScreen(result: result),
-        ),
+        MaterialPageRoute(builder: (_) => QrScanResultScreen(result: result)),
       );
     } catch (error) {
       if (!mounted) return;
 
       setState(() => _isScanning = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('QR lookup failed: $error'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('QR lookup failed: $error')));
 
       await _cameraController.start();
 
@@ -203,9 +199,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
 
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => QrScanResultScreen(result: result),
-        ),
+        MaterialPageRoute(builder: (_) => QrScanResultScreen(result: result)),
       );
     } catch (error) {
       if (!mounted) return;
@@ -214,11 +208,9 @@ class _QrScanScreenState extends State<QrScanScreen> {
         _isScanning = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Scan error: $error'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Scan error: $error')));
     }
   }
 
@@ -246,20 +238,16 @@ class _QrScanScreenState extends State<QrScanScreen> {
 
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => QrScanResultScreen(result: result),
-        ),
+        MaterialPageRoute(builder: (_) => QrScanResultScreen(result: result)),
       );
     } catch (error) {
       if (!mounted) return;
 
       setState(() => _isScanning = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Child lookup failed: $error'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Child lookup failed: $error')));
     }
   }
 
@@ -303,10 +291,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                         'Scan the child QR to retrieve the child record. '
                         'The QR is an identifier only and does not determine '
                         'the vaccination schedule.',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          height: 1.4,
-                        ),
+                        style: TextStyle(fontSize: 12.5, height: 1.4),
                       ),
                     ),
                   ],
@@ -445,8 +430,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                   ),
                 ),
 
-              if (_liveMode && !_cameraStarted)
-                const SizedBox(height: 12),
+              if (_liveMode && !_cameraStarted) const SizedBox(height: 12),
 
               Text(
                 _isScanning ? 'Reading QR code...' : 'Ready to scan',
@@ -462,8 +446,8 @@ class _QrScanScreenState extends State<QrScanScreen> {
                 _isScanning
                     ? 'Retrieving the child record.'
                     : _liveMode
-                        ? 'Point the camera at the child QR code.'
-                        : 'Tap the button below to simulate a QR scan.',
+                    ? 'Point the camera at the child QR code.'
+                    : 'Tap the button below to simulate a QR scan.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -484,9 +468,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                           ? Icons.hourglass_top_rounded
                           : Icons.qr_code_scanner_rounded,
                     ),
-                    label: Text(
-                      _isScanning ? 'Scanning...' : 'Scan Child QR',
-                    ),
+                    label: Text(_isScanning ? 'Scanning...' : 'Scan Child QR'),
                   ),
                 ),
 
@@ -509,9 +491,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
                   'Demo mode: QR scanning is simulated',
                   style: TextStyle(
                     fontSize: 11,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
             ],
@@ -579,10 +559,7 @@ class _ChildIdDialogState extends State<_ChildIdDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Find Child'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Find Child')),
       ],
     );
   }

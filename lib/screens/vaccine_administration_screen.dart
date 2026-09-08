@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../models/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import '../models/vaccine_inventory.dart';
 import '../models/vaccination_record.dart';
 import '../models/vaccination_screening.dart';

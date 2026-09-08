@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/pnip_schedule_entry.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/pnip_schedule_rule.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/vaccination_record.dart';

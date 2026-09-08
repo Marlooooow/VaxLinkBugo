@@ -1,4 +1,4 @@
-import 'external_vaccination_record.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_record.dart';
 
 class ExternalVaccinationVisit {
   final String externalVisitId;

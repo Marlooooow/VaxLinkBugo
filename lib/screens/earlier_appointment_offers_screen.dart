@@ -213,8 +213,10 @@ class _EarlierAppointmentOffersScreenState
               final pending = widget.healthWorkerMode
                   ? _pendingCount
                   : all
-                  .where((o) => o.status == AppointmentSlotOfferStatus.pending)
-                  .length;
+                        .where(
+                          (o) => o.status == AppointmentSlotOfferStatus.pending,
+                        )
+                        .length;
               return RefreshIndicator(
                 onRefresh: _refresh,
                 child: ListView(

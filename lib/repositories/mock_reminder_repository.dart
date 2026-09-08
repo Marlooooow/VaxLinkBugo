@@ -1,4 +1,4 @@
-import '../models/child/child_profile.dart';
+import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import '../models/pnip_schedule_entry.dart';
 import '../models/reminder_follow_up.dart';
 import '../models/vaccination_reminder.dart';
@@ -92,9 +92,7 @@ class MockReminderRepository implements ReminderRepository {
         ? childIds.length
         : offset;
     final requestedEnd = start + (limit < 1 ? 1 : limit);
-    final end = requestedEnd > childIds.length
-        ? childIds.length
-        : requestedEnd;
+    final end = requestedEnd > childIds.length ? childIds.length : requestedEnd;
     final items = <VaccinationReminder>[
       for (final childId in childIds.sublist(start, end))
         ...remindersByChild[childId]!,
@@ -328,5 +326,4 @@ class MockReminderRepository implements ReminderRepository {
     });
     return List.unmodifiable(result);
   }
-
 }

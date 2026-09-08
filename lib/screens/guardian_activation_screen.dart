@@ -136,7 +136,9 @@ class _GuardianActivationScreenState extends State<GuardianActivationScreen> {
               const SizedBox(height: 10),
               SelectableText('Guardian ID / Login ID: ${activation.username}'),
               const SizedBox(height: 4),
-              SelectableText('Temporary password: ${activation.temporaryPassword}'),
+              SelectableText(
+                'Temporary password: ${activation.temporaryPassword}',
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,

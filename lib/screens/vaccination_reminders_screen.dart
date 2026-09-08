@@ -456,9 +456,7 @@ class _VaccinationRemindersScreenState
         widget.healthWorkerMode ? 'Follow-up Reminders' : 'Reminders',
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
-      actions: widget.healthWorkerMode
-          ? const [WorkerAppBarActions()]
-          : null,
+      actions: widget.healthWorkerMode ? const [WorkerAppBarActions()] : null,
     ),
     body: FutureBuilder<List<VaccinationReminder>>(
       future: _reminders,
@@ -510,9 +508,7 @@ class _VaccinationRemindersScreenState
                   selectedCount: _selectedIds.length,
                   allSelected:
                       displayed.isNotEmpty &&
-                      displayed.every(
-                        (item) => _selectedIds.contains(item.id),
-                      ),
+                      displayed.every((item) => _selectedIds.contains(item.id)),
                   onSelectAll: () => setState(() {
                     if (_batchSaving) return;
                     final ids = displayed.map((item) => item.id).toSet();
@@ -564,9 +560,7 @@ class _VaccinationRemindersScreenState
                         },
                       )
                     else
-                      _Summary(
-                        summary: ReminderSummary.fromItems(reminders),
-                      ),
+                      _Summary(summary: ReminderSummary.fromItems(reminders)),
                     const SizedBox(height: 14),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -605,9 +599,9 @@ class _VaccinationRemindersScreenState
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHigh,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Row(
@@ -702,9 +696,8 @@ class _VaccinationRemindersScreenState
                               !item.hasUnreadNotification ||
                               _locallyReadIds.contains(item.id),
                           onOpen: _markRead,
-                          onViewChild: () => _openChildDue(
-                            group.reminders.first,
-                          ),
+                          onViewChild: () =>
+                              _openChildDue(group.reminders.first),
                         ),
                       ),
                     if (widget.healthWorkerMode && _hasMoreFacilityReminders)
@@ -715,18 +708,19 @@ class _VaccinationRemindersScreenState
                               ? null
                               : _loadMoreFacilityReminders,
                           icon: const Icon(Icons.expand_more_rounded),
-                          label: Text(_loadingMoreFacilityReminders
-                              ? 'Loading…'
-                              : 'Load 10 more'),
+                          label: Text(
+                            _loadingMoreFacilityReminders
+                                ? 'Loading…'
+                                : 'Load 10 more',
+                          ),
                         ),
                       ),
                     if (!widget.healthWorkerMode && hasMoreGuardianReminders)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: OutlinedButton.icon(
-                          onPressed: () => setState(
-                            () => _guardianVisibleChildLimit += 10,
-                          ),
+                          onPressed: () =>
+                              setState(() => _guardianVisibleChildLimit += 10),
                           icon: const Icon(Icons.expand_more_rounded),
                           label: const Text('Load 10 more'),
                         ),
@@ -871,9 +865,7 @@ class _SummaryUnavailable extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         const Expanded(
-          child: Text(
-            'Total reminder counts are temporarily unavailable.',
-          ),
+          child: Text('Total reminder counts are temporarily unavailable.'),
         ),
         TextButton(onPressed: onRetry, child: const Text('Retry')),
       ],
@@ -1103,9 +1095,7 @@ class _ChildReminderGroupCard extends StatelessWidget {
                 _Detail('Channel', _channelLabel(reminder.channel)),
                 _Detail('Reminder ID', reminder.reminderCode),
                 const SizedBox(height: 8),
-                _FollowUpHistory(
-                  loader: () => historyLoader(reminder),
-                ),
+                _FollowUpHistory(loader: () => historyLoader(reminder)),
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,

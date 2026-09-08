@@ -45,7 +45,9 @@ class _ExternalVaccinationScreenState extends State<ExternalVaccinationScreen> {
           payload['version'] != 1 ||
           payload['referral_group_id'] is! String ||
           payload['verification_token'] is! String) {
-        throw const FormatException('This is not a supported referral QR code.');
+        throw const FormatException(
+          'This is not a supported referral QR code.',
+        );
       }
       final verification = await _repository.verifyReferralGroup(
         referralGroupId: payload['referral_group_id'] as String,
@@ -328,7 +330,8 @@ class _ReferralQrScannerDialog extends StatefulWidget {
   const _ReferralQrScannerDialog();
 
   @override
-  State<_ReferralQrScannerDialog> createState() => _ReferralQrScannerDialogState();
+  State<_ReferralQrScannerDialog> createState() =>
+      _ReferralQrScannerDialogState();
 }
 
 class _ReferralQrScannerDialogState extends State<_ReferralQrScannerDialog> {
@@ -351,7 +354,11 @@ class _ReferralQrScannerDialogState extends State<_ReferralQrScannerDialog> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Camera access is unavailable. Allow permission and try again.')),
+          const SnackBar(
+            content: Text(
+              'Camera access is unavailable. Allow permission and try again.',
+            ),
+          ),
         );
       }
     }
@@ -377,7 +384,11 @@ class _ReferralQrScannerDialogState extends State<_ReferralQrScannerDialog> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: _requiresHttps
-                  ? const Center(child: Text('Camera scanning requires HTTPS on a mobile browser.'))
+                  ? const Center(
+                      child: Text(
+                        'Camera scanning requires HTTPS on a mobile browser.',
+                      ),
+                    )
                   : MobileScanner(
                       controller: _camera,
                       onDetect: (capture) {
@@ -391,7 +402,9 @@ class _ReferralQrScannerDialogState extends State<_ReferralQrScannerDialog> {
                         Navigator.pop(context, value.trim());
                       },
                       errorBuilder: (_, __) => const Center(
-                        child: Text('Camera access is needed to scan. You may paste the QR content below.'),
+                        child: Text(
+                          'Camera access is needed to scan. You may paste the QR content below.',
+                        ),
                       ),
                     ),
             ),
@@ -416,7 +429,10 @@ class _ReferralQrScannerDialogState extends State<_ReferralQrScannerDialog> {
       ),
     ),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
       FilledButton(
         onPressed: () => Navigator.pop(context, _controller.text.trim()),
         child: const Text('Verify'),
