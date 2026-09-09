@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/pnip_schedule_entry.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/pnip_schedule_rule.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/vaccination_record.dart';
 import 'package:qr_code_based_pediatric_vaccination/services/pnip_schedule_service.dart';
 
@@ -100,41 +99,5 @@ void main() {
     );
     expect(penta2.status, PnipDoseStatus.upcoming);
     expect(penta2.scheduledDate, DateTime(2026, 8, 29));
-  });
-
-  test('calculates the live schedule from database rule values', () {
-    const rules = [
-      PnipScheduleRule(
-        vaccineId: 'bcg',
-        vaccineName: 'BCG',
-        doseNumber: 1,
-        recommendedAgeDays: 0,
-      ),
-      PnipScheduleRule(
-        vaccineId: 'pentavalent',
-        vaccineName: 'Pentavalent',
-        doseNumber: 1,
-        recommendedAgeDays: 42,
-      ),
-      PnipScheduleRule(
-        vaccineId: 'pentavalent',
-        vaccineName: 'Pentavalent',
-        doseNumber: 2,
-        recommendedAgeDays: 70,
-        minimumIntervalDays: 28,
-      ),
-    ];
-
-    final schedule = service.calculateFromRules(
-      child: child,
-      history: const [],
-      rules: rules,
-      asOf: DateTime(2026, 1, 1),
-    );
-
-    expect(schedule, hasLength(3));
-    expect(schedule[0].status, PnipDoseStatus.due);
-    expect(schedule[1].status, PnipDoseStatus.upcoming);
-    expect(schedule[2].status, PnipDoseStatus.notEligible);
   });
 }

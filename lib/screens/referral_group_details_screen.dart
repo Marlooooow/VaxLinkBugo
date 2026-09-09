@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 
-import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_record.dart';
-import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_visit.dart';
+import '../models/external_vaccination/external_vaccination_record.dart';
+import '../models/external_vaccination/external_vaccination_visit.dart';
 import '../models/referral.dart';
 import '../models/referral_verification_result.dart';
 import '../repositories/referral_repository.dart';
-import '../repositories/demo_repository.dart';
 import '../services/mock_identifier_generator.dart';
 import '../utils/user_facing_error.dart';
 import 'referral_details_screen.dart';
@@ -152,20 +151,15 @@ class _ReferralGroupDetailsScreenState
     setState(() => _saving = true);
     try {
       final now = DateTime.now();
-      final useLocalIds = widget.repository is DemoRepository;
-      final visitIdentity = useLocalIds
-          ? MockIdentifierGenerator.next(prefix: 'EV')
-          : null;
+      final visitIdentity = MockIdentifierGenerator.next(prefix: 'EV');
       final records = selected.map((referral) {
-        final recordIdentity = useLocalIds
-            ? MockIdentifierGenerator.next(prefix: 'VR')
-            : null;
+        final recordIdentity = MockIdentifierGenerator.next(prefix: 'VR');
         return ExternalVaccinationRecord(
-          recordId: recordIdentity?.id ?? '',
-          recordCode: recordIdentity?.code ?? '',
+          recordId: recordIdentity.id,
+          recordCode: recordIdentity.code,
           referralId: referral.referralId,
-          externalVisitId: visitIdentity?.id ?? '',
-          externalVisitCode: visitIdentity?.code ?? '',
+          externalVisitId: visitIdentity.id,
+          externalVisitCode: visitIdentity.code,
           childId: referral.childId,
           vaccineId: referral.vaccineId,
           vaccineAdministered: referral.vaccineName,
@@ -329,7 +323,7 @@ class _ReferralGroupDetailsScreenState
     final primary = Theme.of(context).colorScheme.primary;
     final pending = _referrals.where((item) => item.isPending).toList();
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF7FAFC),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Text(
