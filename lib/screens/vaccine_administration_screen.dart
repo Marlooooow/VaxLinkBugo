@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import '../models/child/child_profile.dart';
 import '../models/vaccine_inventory.dart';
 import '../models/vaccination_record.dart';
 import '../models/vaccination_screening.dart';
@@ -9,7 +9,6 @@ import '../utils/number_formatter.dart';
 import '../utils/user_facing_error.dart';
 import '../repositories/vaccination_repository.dart';
 import '../services/mock_identifier_generator.dart';
-import '../services/session_context.dart';
 import 'referral_screen.dart';
 import 'child_profile_screen.dart';
 
@@ -139,13 +138,10 @@ class _VaccineAdministrationScreenState
     try {
       final assessment = await _vaccinationRepository.assessChild(widget.child);
       final now = DateTime.now();
-      final live = RepositoryRegistry.instance.environment.isLive;
-      final screeningIdentity = live
-          ? null
-          : MockIdentifierGenerator.next(prefix: 'SCR');
+      final screeningIdentity = MockIdentifierGenerator.next(prefix: 'SCR');
       var screening = VaccinationScreening(
-        id: screeningIdentity?.id ?? '',
-        screeningCode: screeningIdentity?.code ?? '',
+        id: screeningIdentity.id,
+        screeningCode: screeningIdentity.code,
         childId: widget.child.id,
         historyReviewed: _historyReviewed,
         currentConditionAssessed: _conditionAssessed,
@@ -154,7 +150,7 @@ class _VaccineAdministrationScreenState
         outcome: VaccinationScreeningOutcome.cleared,
         notes: _notAdministeredReason.text.trim(),
         screenedAt: now,
-        screenedByUserId: SessionContext.userId,
+        screenedByUserId: '00000000-0000-4000-8000-000000000201',
       );
       final selectedInventory = widget.vaccines
           .where((item) => _selectedVaccines.contains(item.vaccineId))
@@ -163,12 +159,10 @@ class _VaccineAdministrationScreenState
         final scheduledDose = assessment.recommendedDoses.firstWhere(
           (dose) => dose.vaccineId == vaccine.vaccineId,
         );
-        final identity = live
-            ? null
-            : MockIdentifierGenerator.next(prefix: 'VAX');
+        final identity = MockIdentifierGenerator.next(prefix: 'VAX');
         return VaccinationRecord(
-          id: identity?.id ?? '',
-          recordCode: identity?.code ?? '',
+          id: identity.id,
+          recordCode: identity.code,
           childId: widget.child.id,
           vaccineId: vaccine.vaccineId,
           vaccineName: vaccine.vaccineName,
@@ -176,11 +170,11 @@ class _VaccineAdministrationScreenState
           dateAdministered: now,
           administeringFacility: 'Barangay Bugo Health Center',
           healthWorkerName: 'Bugo Health Worker',
-          healthWorkerId: SessionContext.userId,
+          healthWorkerId: '00000000-0000-4000-8000-000000000201',
           source: VaccinationSource.bugo,
           notes: 'Recorded through the normal vaccination workflow.',
           recordedAt: now,
-          recordedByUserId: SessionContext.userId,
+          recordedByUserId: '00000000-0000-4000-8000-000000000201',
           screeningId: screening.id,
         );
       }).toList();
@@ -196,9 +190,7 @@ class _VaccineAdministrationScreenState
         _saving = false;
         _completed = true;
       });
-      final viewedProfile = await _showAdministrationSuccessDialog(
-        records.length,
-      );
+      final viewedProfile = await _showAdministrationSuccessDialog(records.length);
       if (viewedProfile) return;
     } catch (error) {
       if (!mounted) return;
@@ -352,7 +344,7 @@ class _VaccineAdministrationScreenState
     final primary = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF7FAFC),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
