@@ -1,5 +1,10 @@
 import '../repositories/repository_registry.dart';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import '../models/app_user.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_registration.dart';
@@ -344,6 +349,14 @@ class _GuardianPatientRegistrationScreenState
             ],
           ),
           actions: [
+            if (result.guardian.invitationCode != null &&
+                result.invitation?.channel ==
+                    GuardianInvitationChannel.printedSlip)
+              TextButton.icon(
+                onPressed: () => _printActivationSlip(result),
+                icon: const Icon(Icons.print_outlined),
+                label: const Text('Print Activation Slip'),
+              ),
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Done for Now'),
@@ -767,6 +780,99 @@ class _GuardianPatientRegistrationScreenState
 
   static String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'This field is required.' : null;
+  Future<Uint8List> _buildActivationSlip(
+    GuardianRegistrationResult result,
+  ) async {
+    final invitation = result.invitation!;
+    final document = pw.Document();
+    document.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(44),
+        build: (_) => pw.Center(
+          child: pw.Container(
+            width: 390,
+            padding: const pw.EdgeInsets.all(28),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey500),
+              borderRadius: pw.BorderRadius.circular(12),
+            ),
+            child: pw.Column(
+              mainAxisSize: pw.MainAxisSize.min,
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                pw.Text(
+                  'GUARDIAN ONLINE ACCESS',
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(
+                    fontSize: 17,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  'Barangay Bugo Health Center',
+                  textAlign: pw.TextAlign.center,
+                ),
+                pw.SizedBox(height: 24),
+                _slipField('Guardian', result.guardian.fullName),
+                _slipField('Guardian ID', result.guardian.guardianCode),
+                _slipField('Activation code', invitation.invitationCode),
+                _slipField('Expires', _printDate(invitation.expiresAt)),
+                pw.SizedBox(height: 18),
+                pw.Divider(),
+                pw.SizedBox(height: 10),
+                pw.Text(
+                  'Use the Activate Guardian Access option in VaxLink. Enter the one-time activation code above. Your Guardian ID will become your login ID, and you will create a private password during activation.',
+                  textAlign: pw.TextAlign.center,
+                  style: const pw.TextStyle(fontSize: 10, lineSpacing: 3),
+                ),
+                pw.SizedBox(height: 12),
+                pw.Text(
+                  'Keep this slip private. The activation code can be used only once.',
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return document.save();
+  }
+
+  pw.Widget _slipField(String label, String value) => pw.Padding(
+    padding: const pw.EdgeInsets.only(bottom: 10),
+    child: pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(label, style: const pw.TextStyle(fontSize: 9)),
+        pw.SizedBox(height: 2),
+        pw.Text(
+          value,
+          style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+        ),
+      ],
+    ),
+  );
+
+  String _printDate(DateTime value) {
+    final local = value.toLocal();
+    return '${local.month.toString().padLeft(2, '0')}/'
+        '${local.day.toString().padLeft(2, '0')}/${local.year} '
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _printActivationSlip(GuardianRegistrationResult result) =>
+      Printing.layoutPdf(
+        name: 'Guardian_Activation_${result.guardian.guardianCode}.pdf',
+        onLayout: (_) => _buildActivationSlip(result),
+      );
 }
 
 class _IntroCard extends StatelessWidget {

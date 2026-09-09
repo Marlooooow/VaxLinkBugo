@@ -24,6 +24,7 @@ import 'advisory_insights_screen.dart';
 import 'staff_notifications_screen.dart';
 import 'staff_management_screen.dart';
 import 'vaccination_records_screen.dart';
+import 'operational_reports_screen.dart';
 import '../widgets/app_loading.dart';
 import '../utils/user_facing_error.dart';
 
@@ -413,6 +414,22 @@ class _HealthWorkerHomeScreenState extends State<HealthWorkerHomeScreen> {
                           context,
                           MaterialPageRoute(
                             builder: (_) => const ExternalVaccinationScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _WorkerCard(
+                      icon: Icons.description_outlined,
+                      color: primary,
+                      title: 'Operational Reports',
+                      subtitle:
+                          'Generate facility follow-up, vaccination, and inventory reports.',
+                      onTap: () {
+                        _open(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const OperationalReportsScreen(),
                           ),
                         );
                       },
