@@ -7,7 +7,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../models/child/child_profile.dart';
 import '../models/operational_report.dart';
+import '../repositories/child_repository.dart';
 import '../repositories/operational_report_repository.dart';
 import '../repositories/repository_registry.dart';
 import '../utils/user_facing_error.dart';
@@ -16,8 +18,13 @@ import '../widgets/worker_app_bar_actions.dart';
 
 class OperationalReportsScreen extends StatefulWidget {
   final OperationalReportRepository? repository;
+  final ChildRepository? childRepository;
 
-  const OperationalReportsScreen({super.key, this.repository});
+  const OperationalReportsScreen({
+    super.key,
+    this.repository,
+    this.childRepository,
+  });
 
   @override
   State<OperationalReportsScreen> createState() =>
@@ -26,9 +33,11 @@ class OperationalReportsScreen extends StatefulWidget {
 
 class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
   late final OperationalReportRepository _repository;
+  late final ChildRepository _childRepository;
   late DateTimeRange _period;
   OperationalReportType _type = OperationalReportType.followUps;
   OperationalReport? _report;
+  ChildProfile? _selectedChild;
   bool _loading = false;
   bool _exporting = false;
 
@@ -38,6 +47,8 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
     _repository =
         widget.repository ??
         RepositoryRegistry.instance.operationalReportRepository;
+    _childRepository =
+        widget.childRepository ?? RepositoryRegistry.instance.childRepository;
     final today = _day(DateTime.now());
     _period = DateTimeRange(
       start: DateTime(today.year, today.month),
@@ -68,6 +79,13 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
 
   Future<void> _generate() async {
     if (_loading) return;
+    if (_type == OperationalReportType.childVaccinationRecord &&
+        _selectedChild == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Select a child first.')));
+      return;
+    }
     setState(() {
       _loading = true;
       _report = null;
@@ -77,6 +95,7 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
         type: _type,
         fromDate: _period.start,
         toDate: _period.end,
+        childId: _selectedChild?.id,
       );
       if (mounted) setState(() => _report = report);
     } catch (error) {
@@ -96,12 +115,28 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
     }
   }
 
+  Future<void> _chooseChild() async {
+    final selected = await showDialog<ChildProfile>(
+      context: context,
+      builder: (_) => _ChildReportPicker(repository: _childRepository),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _selectedChild = selected;
+      _report = null;
+    });
+  }
+
   Future<Uint8List> _buildPdf(OperationalReport report, PdfPageFormat _) async {
     final document = pw.Document();
-    final landscape = report.columns.length > 6;
+    final pageFormat = report.columns.length > 9
+        ? PdfPageFormat.a3.landscape
+        : report.columns.length > 6
+        ? PdfPageFormat.a4.landscape
+        : PdfPageFormat.a4;
     document.addPage(
       pw.MultiPage(
-        pageFormat: landscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
+        pageFormat: pageFormat,
         margin: const pw.EdgeInsets.all(28),
         header: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -245,16 +280,47 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                       'Inventory',
                       Icons.inventory_2_outlined,
                     ),
+                    _reportChoice(
+                      OperationalReportType.childVaccinationRecord,
+                      'Child record',
+                      Icons.child_care_outlined,
+                    ),
+                    _reportChoice(
+                      OperationalReportType.inventoryTransactions,
+                      'Stock transactions',
+                      Icons.receipt_long_outlined,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: _choosePeriod,
-                  icon: const Icon(Icons.date_range_outlined),
-                  label: Text(
-                    '${_date(_period.start)} – ${_date(_period.end)}',
+                if (_type == OperationalReportType.childVaccinationRecord) ...[
+                  OutlinedButton.icon(
+                    onPressed: _chooseChild,
+                    icon: const Icon(Icons.person_search_outlined),
+                    label: Text(
+                      _selectedChild == null
+                          ? 'Select child'
+                          : _selectedChild!.fullName,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 10),
+                ],
+                if (_type != OperationalReportType.childVaccinationRecord)
+                  OutlinedButton.icon(
+                    onPressed: _choosePeriod,
+                    icon: const Icon(Icons.date_range_outlined),
+                    label: Text(
+                      '${_date(_period.start)} – ${_date(_period.end)}',
+                    ),
+                  )
+                else
+                  Text(
+                    'The child report includes the complete recorded vaccination history.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
                 if (_type == OperationalReportType.followUps) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -350,6 +416,10 @@ class _ReportIntro extends StatelessWidget {
         'Administered doses summarized by vaccine, dose number, and record source.',
       OperationalReportType.inventory =>
         'Current usable stock with low-stock, expiry, and period wastage indicators.',
+      OperationalReportType.childVaccinationRecord =>
+        'A selected child’s database-recorded vaccination history for verification or printing.',
+      OperationalReportType.inventoryTransactions =>
+        'A dated audit trail of received, adjusted, administered, and wasted vaccine stock.',
     };
     return Container(
       padding: const EdgeInsets.all(16),
@@ -442,4 +512,127 @@ class _ReportPreview extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ChildReportPicker extends StatefulWidget {
+  final ChildRepository repository;
+
+  const _ChildReportPicker({required this.repository});
+
+  @override
+  State<_ChildReportPicker> createState() => _ChildReportPickerState();
+}
+
+class _ChildReportPickerState extends State<_ChildReportPicker> {
+  final _searchController = TextEditingController();
+  late Future<RegisteredFamilyPage> _families;
+
+  @override
+  void initState() {
+    super.initState();
+    _search();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _search() {
+    setState(() {
+      _families = widget.repository.getHealthWorkerRegisteredFamiliesPage(
+        search: _searchController.text,
+        pageSize: 50,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Select child'),
+    content: SizedBox(
+      width: 520,
+      height: 480,
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchController,
+            autofocus: true,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              labelText: 'Child name or Child ID',
+              suffixIcon: IconButton(
+                tooltip: 'Search',
+                onPressed: _search,
+                icon: const Icon(Icons.search_rounded),
+              ),
+            ),
+            onSubmitted: (_) => _search(),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: FutureBuilder<RegisteredFamilyPage>(
+              future: _families,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Children could not be loaded.'),
+                        TextButton(
+                          onPressed: _search,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                final families = snapshot.data?.items ?? const [];
+                final choices = [
+                  for (final summary in families)
+                    for (final child in summary.family.children)
+                      (
+                        child: child,
+                        guardian: summary.family.guardian.fullName,
+                      ),
+                ];
+                if (choices.isEmpty) {
+                  return const Center(
+                    child: Text('No matching children found.'),
+                  );
+                }
+                return ListView.separated(
+                  itemCount: choices.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final choice = choices[index];
+                    return ListTile(
+                      leading: const Icon(Icons.child_care_outlined),
+                      title: Text(choice.child.fullName),
+                      subtitle: Text(
+                        '${choice.child.qrIdentifier}\nGuardian: ${choice.guardian}',
+                      ),
+                      isThreeLine: true,
+                      onTap: () => Navigator.pop(context, choice.child),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+    ],
+  );
 }

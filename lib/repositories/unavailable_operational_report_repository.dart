@@ -10,6 +10,7 @@ class UnavailableOperationalReportRepository
     required OperationalReportType type,
     required DateTime fromDate,
     required DateTime toDate,
+    String? childId,
   }) => throw StateError(
     'Operational reports require a live database connection.',
   );

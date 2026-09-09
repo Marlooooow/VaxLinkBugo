@@ -14,15 +14,34 @@ class SupabaseOperationalReportRepository
     required OperationalReportType type,
     required DateTime fromDate,
     required DateTime toDate,
+    String? childId,
   }) async {
-    final raw = await _client.rpc(
-      'get_operational_report',
-      params: {
-        'p_report_type': _snake(type.name),
-        'p_from_date': _date(fromDate),
-        'p_to_date': _date(toDate),
-      },
-    );
+    if (type == OperationalReportType.childVaccinationRecord &&
+        childId == null) {
+      throw ArgumentError('Select a child before generating this report.');
+    }
+    final raw = switch (type) {
+      OperationalReportType.childVaccinationRecord => await _client.rpc(
+        'get_child_vaccination_report',
+        params: {
+          'p_child_id': childId,
+          'p_from_date': _date(fromDate),
+          'p_to_date': _date(toDate),
+        },
+      ),
+      OperationalReportType.inventoryTransactions => await _client.rpc(
+        'get_inventory_transaction_report',
+        params: {'p_from_date': _date(fromDate), 'p_to_date': _date(toDate)},
+      ),
+      _ => await _client.rpc(
+        'get_operational_report',
+        params: {
+          'p_report_type': _snake(type.name),
+          'p_from_date': _date(fromDate),
+          'p_to_date': _date(toDate),
+        },
+      ),
+    };
     final result = Map<String, dynamic>.from(raw as Map);
     return OperationalReport(
       type: type,

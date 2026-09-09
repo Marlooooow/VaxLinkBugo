@@ -1,4 +1,10 @@
-enum OperationalReportType { followUps, vaccinationAccomplishment, inventory }
+enum OperationalReportType {
+  followUps,
+  vaccinationAccomplishment,
+  inventory,
+  childVaccinationRecord,
+  inventoryTransactions,
+}
 
 class OperationalReportColumn {
   final String key;

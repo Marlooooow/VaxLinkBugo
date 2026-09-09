@@ -5,5 +5,6 @@ abstract class OperationalReportRepository {
     required OperationalReportType type,
     required DateTime fromDate,
     required DateTime toDate,
+    String? childId,
   });
 }
