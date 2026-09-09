@@ -81,7 +81,11 @@ class Referral {
     };
   }
 
-  Referral copyWith({String? status, DateTime? completedAt}) {
+  Referral copyWith({
+    String? status,
+    DateTime? completedAt,
+    String? verificationToken,
+  }) {
     return Referral(
       id: id,
       referralCode: referralCode,
@@ -97,7 +101,7 @@ class Referral {
       status: status ?? this.status,
       createdAt: createdAt,
       completedAt: completedAt ?? this.completedAt,
-      verificationToken: verificationToken,
+      verificationToken: verificationToken ?? this.verificationToken,
     );
   }
 }

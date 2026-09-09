@@ -6,7 +6,6 @@ import '../models/pnip_schedule_entry.dart';
 import '../models/vaccination_assessment.dart';
 import '../models/vaccination_record.dart';
 import '../repositories/vaccination_repository.dart';
-import '../services/mock_identifier_generator.dart';
 import '../services/session_context.dart';
 import '../utils/user_facing_error.dart';
 import '../widgets/app_loading.dart';
@@ -90,11 +89,10 @@ class _PreviousVaccinationScreenState extends State<PreviousVaccinationScreen> {
     }
     setState(() => _saving = true);
     try {
-      final identity = MockIdentifierGenerator.next(prefix: 'VAX');
       await _repository.recordVaccinations([
         VaccinationRecord(
-          id: identity.id,
-          recordCode: identity.code,
+          id: '',
+          recordCode: '',
           childId: widget.child.id,
           vaccineId: dose.vaccineId,
           vaccineName: dose.vaccineName,

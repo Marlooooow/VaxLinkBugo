@@ -140,7 +140,7 @@ class _GuardianPatientRegistrationScreenState
         _phone.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Enter a mobile number for the mock SMS invitation.'),
+          content: Text('Enter a mobile number for the SMS invitation.'),
         ),
       );
       return;
@@ -206,8 +206,8 @@ class _GuardianPatientRegistrationScreenState
               _ReviewRow(
                 label: 'Invitation',
                 value: switch (_invitationChannel) {
-                  GuardianInvitationChannel.sms => 'Mock SMS',
-                  GuardianInvitationChannel.email => 'Mock email',
+                  GuardianInvitationChannel.sms => 'SMS',
+                  GuardianInvitationChannel.email => 'Email',
                   GuardianInvitationChannel.printedSlip => 'Printed slip',
                 },
               ),
@@ -334,10 +334,11 @@ class _GuardianPatientRegistrationScreenState
                   Text(
                     result.invitation!.channel ==
                             GuardianInvitationChannel.printedSlip
-                        ? (RepositoryRegistry.instance.environment.isLive
-                              ? 'Give this code privately to the guardian. It is shown once and expires in 7 days. No SMS or email was sent.'
-                              : 'Mock printed activation slip prepared.')
-                        : 'Mock ${result.invitation!.channel.name.toUpperCase()} delivered to ${result.invitation!.maskedDestination}.',
+                        ? 'Give this code privately to the guardian. It is shown once and expires in 7 days.'
+                        : result.invitation!.status ==
+                              GuardianInvitationStatus.delivered
+                        ? 'The activation instructions were sent to ${result.invitation!.maskedDestination}.'
+                        : 'The SMS could not be sent. Give or print the activation code instead.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -350,8 +351,7 @@ class _GuardianPatientRegistrationScreenState
           ),
           actions: [
             if (result.guardian.invitationCode != null &&
-                result.invitation?.channel ==
-                    GuardianInvitationChannel.printedSlip)
+                result.invitation != null)
               TextButton.icon(
                 onPressed: () => _printActivationSlip(result),
                 icon: const Icon(Icons.print_outlined),
@@ -586,11 +586,10 @@ class _GuardianPatientRegistrationScreenState
                     labelText: 'Invitation delivery',
                   ),
                   items: [
-                    if (!RepositoryRegistry.instance.environment.isLive)
-                      const DropdownMenuItem(
-                        value: GuardianInvitationChannel.sms,
-                        child: Text('Mock SMS'),
-                      ),
+                    const DropdownMenuItem(
+                      value: GuardianInvitationChannel.sms,
+                      child: Text('SMS'),
+                    ),
                     if (!RepositoryRegistry.instance.environment.isLive)
                       const DropdownMenuItem(
                         value: GuardianInvitationChannel.email,
@@ -607,7 +606,7 @@ class _GuardianPatientRegistrationScreenState
                 const SizedBox(height: 8),
                 Text(
                   RepositoryRegistry.instance.environment.isLive
-                      ? 'A one-time activation code will be shown after registration. Give it to the guardian privately; SMS and email are not configured.'
+                      ? 'SMS sends one activation message to the guardian’s saved mobile number. The code is also shown once so it can be printed if delivery fails.'
                       : 'SMS and email delivery are simulated. No third-party provider is connected.',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,

@@ -131,7 +131,7 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      'Child ID: ${child.id}',
+                      'Child ID: ${child.qrIdentifier}',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,

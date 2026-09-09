@@ -1,7 +1,7 @@
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
-import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import '../models/child/child_profile.dart';
 import '../models/referral.dart';
 import '../models/vaccine_inventory.dart';
 import '../repositories/referral_repository.dart';
@@ -52,6 +52,16 @@ class _ReferralScreenState extends State<ReferralScreen> {
         _referrals = referrals;
         _isGenerating = false;
       });
+
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReferralQrScreen(
+            referrals: referrals,
+            child: widget.child,
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) {
         return;
@@ -74,7 +84,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
     final primary = colorScheme.primary;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF7FAFC),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -319,7 +329,10 @@ class _ReferralScreenState extends State<ReferralScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => ReferralQrScreen(referrals: _referrals),
+                  builder: (_) => ReferralQrScreen(
+                    referrals: _referrals,
+                    child: widget.child,
+                  ),
                 ),
               );
             },

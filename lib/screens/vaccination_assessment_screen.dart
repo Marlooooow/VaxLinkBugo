@@ -1,14 +1,12 @@
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
-import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import '../models/child/child_profile.dart';
 import '../models/pnip_schedule_entry.dart';
 import '../models/vaccination_assessment.dart';
 import '../models/vaccination_record.dart';
 import '../models/first_visit_review.dart';
 import '../repositories/vaccination_repository.dart';
-import '../services/mock_identifier_generator.dart';
-import '../services/session_context.dart';
 import '../theme/status_colors.dart';
 import 'inventory_check_screen.dart';
 import 'previous_vaccination_screen.dart';
@@ -90,23 +88,10 @@ class _VaccinationAssessmentScreenState
       _reviewLoading = true;
     });
 
-    final live = RepositoryRegistry.instance.environment.isLive;
-    final pendingReview = live
-        ? FirstVisitReview.pending(
-            childId: widget.child.id,
-            hasDocumentedPreviousVaccinations: hasDocuments,
-          )
-        : (() {
-            final identity = MockIdentifierGenerator.next(prefix: 'FVR');
-            return FirstVisitReview(
-              id: identity.id,
-              reviewCode: identity.code,
-              childId: widget.child.id,
-              hasDocumentedPreviousVaccinations: hasDocuments,
-              reviewedAt: DateTime.now(),
-              reviewedByUserId: SessionContext.userId,
-            );
-          })();
+    final pendingReview = FirstVisitReview.pending(
+      childId: widget.child.id,
+      hasDocumentedPreviousVaccinations: hasDocuments,
+    );
 
     try {
       final review = await _repository.recordFirstVisitReview(pendingReview);
@@ -385,9 +370,7 @@ class _VaccinationAssessmentScreenState
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
+                border: Border.all(color: const Color(0xFFE7EDF4)),
               ),
               child: Row(
                 children: [
@@ -544,9 +527,7 @@ class _VaccinationAssessmentScreenState
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(13),
                           decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainer,
+                            color: Colors.grey.shade50,
                             borderRadius: BorderRadius.circular(13),
                           ),
                           child: Row(
@@ -760,7 +741,7 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        border: Border.all(color: const Color(0xFFE7EDF4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -872,7 +853,7 @@ class _VaccinationHistoryItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainer,
+        color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(13),
       ),
       child: Row(

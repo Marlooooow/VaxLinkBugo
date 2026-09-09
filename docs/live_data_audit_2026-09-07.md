@@ -16,11 +16,12 @@ or demo launch.
 | Vaccination administration | Atomic screening, vaccination, and inventory transaction RPC |
 | Inventory | Supabase inventory, batch, transaction, safety, receipt, adjustment, and wastage workflows |
 | Appointments | Facility/guardian reads and database RPCs for schedule, waitlist, reschedule, status, and offer response |
-| Reminders | Database synchronization, summaries, paging, preferences, follow-up history, and SMS function |
+| Reminders | Database synchronization, summaries, paging, preferences, follow-up history, SMS delivery, and PDF/CSV follow-up export |
 | Referrals | Database-issued QR token, verification, external vaccination, completion, and corrections |
 | Advisory insights | Database reads/status changes and facility-scoped generation function |
 | Staff accounts | Administrator registration plus one-time activation function |
 | Staff notifications | Live facility sources with database-persisted read receipts and password-reset requests |
+| Guardian invitation delivery | Database-issued one-time codes with printed fallback and live SMS delivery |
 
 ## Files that must be applied or deployed
 
@@ -30,6 +31,9 @@ The application does not push these automatically:
 2. Apply `supabase/migrations/202609070001_staff_activation_password_policy.sql`.
 3. Deploy `activate-staff-access` after setting the standard Supabase function secrets.
 4. Redeploy `generate-advisory-insights` to use the corrected facility and usable-stock filters.
+5. Apply `supabase/migrations/202609090005_guardian_invitation_sms_delivery.sql`.
+6. Apply `supabase/migrations/202609090006_follow_up_export_contact_fields.sql`.
+7. Deploy `send-guardian-activation-sms` with the existing SMS provider secrets.
 
 ## Deliberately unresolved product-policy items
 
@@ -40,8 +44,6 @@ The application does not push these automatically:
 - System push notifications require a selected push provider and device-token
   policy. The current notification inbox and read state are database-backed,
   but it does not claim operating-system push delivery.
-- Printed follow-up export needs an approved report layout. Follow-up actions
-  and their audit history are already stored in the database.
 
 ## Validation completed
 

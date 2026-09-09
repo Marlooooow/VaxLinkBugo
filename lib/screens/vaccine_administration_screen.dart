@@ -8,9 +8,11 @@ import '../repositories/repository_registry.dart';
 import '../utils/number_formatter.dart';
 import '../utils/user_facing_error.dart';
 import '../repositories/vaccination_repository.dart';
-import '../services/mock_identifier_generator.dart';
+import '../services/session_context.dart';
 import 'referral_screen.dart';
 import 'child_profile_screen.dart';
+
+enum _AdministrationResultAction { finishLater, createReferral }
 
 class VaccineAdministrationScreen extends StatefulWidget {
   final ChildProfile child;
@@ -138,10 +140,9 @@ class _VaccineAdministrationScreenState
     try {
       final assessment = await _vaccinationRepository.assessChild(widget.child);
       final now = DateTime.now();
-      final screeningIdentity = MockIdentifierGenerator.next(prefix: 'SCR');
       var screening = VaccinationScreening(
-        id: screeningIdentity.id,
-        screeningCode: screeningIdentity.code,
+        id: '',
+        screeningCode: '',
         childId: widget.child.id,
         historyReviewed: _historyReviewed,
         currentConditionAssessed: _conditionAssessed,
@@ -150,7 +151,7 @@ class _VaccineAdministrationScreenState
         outcome: VaccinationScreeningOutcome.cleared,
         notes: _notAdministeredReason.text.trim(),
         screenedAt: now,
-        screenedByUserId: '00000000-0000-4000-8000-000000000201',
+        screenedByUserId: SessionContext.userId,
       );
       final selectedInventory = widget.vaccines
           .where((item) => _selectedVaccines.contains(item.vaccineId))
@@ -159,22 +160,21 @@ class _VaccineAdministrationScreenState
         final scheduledDose = assessment.recommendedDoses.firstWhere(
           (dose) => dose.vaccineId == vaccine.vaccineId,
         );
-        final identity = MockIdentifierGenerator.next(prefix: 'VAX');
         return VaccinationRecord(
-          id: identity.id,
-          recordCode: identity.code,
+          id: '',
+          recordCode: '',
           childId: widget.child.id,
           vaccineId: vaccine.vaccineId,
           vaccineName: vaccine.vaccineName,
           doseNumber: scheduledDose.doseNumber,
           dateAdministered: now,
           administeringFacility: 'Barangay Bugo Health Center',
-          healthWorkerName: 'Bugo Health Worker',
-          healthWorkerId: '00000000-0000-4000-8000-000000000201',
+          healthWorkerName: SessionContext.user!.fullName,
+          healthWorkerId: SessionContext.userId,
           source: VaccinationSource.bugo,
           notes: 'Recorded through the normal vaccination workflow.',
           recordedAt: now,
-          recordedByUserId: '00000000-0000-4000-8000-000000000201',
+          recordedByUserId: SessionContext.userId,
           screeningId: screening.id,
         );
       }).toList();
@@ -190,8 +190,20 @@ class _VaccineAdministrationScreenState
         _saving = false;
         _completed = true;
       });
-      final viewedProfile = await _showAdministrationSuccessDialog(records.length);
-      if (viewedProfile) return;
+      if (widget.unavailableVaccines.isNotEmpty) {
+        final action = await _showPartialAdministrationResult(
+          selectedInventory,
+        );
+        if (!mounted) return;
+        if (action == _AdministrationResultAction.createReferral) {
+          _openReferral();
+        } else if (action == _AdministrationResultAction.finishLater) {
+          _openChildProfile(ChildProfileSection.upcoming);
+        }
+        return;
+      }
+
+      await _showAdministrationSuccessDialog(records.length);
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -208,14 +220,6 @@ class _VaccineAdministrationScreenState
       );
       return;
     }
-
-    if (widget.unavailableVaccines.isEmpty) {
-      return;
-    }
-
-    // There are still vaccines that could not be administered at this
-    // facility. Show the referral option after confirming the successful save.
-    if (mounted) _showReferralRequiredDialog();
   }
 
   Future<bool> _showAdministrationSuccessDialog(int recordCount) async {
@@ -271,64 +275,119 @@ class _VaccineAdministrationScreenState
     return viewedProfile;
   }
 
-  void _showReferralRequiredDialog() {
-    final unavailableCount = widget.unavailableVaccines.length;
-
-    showDialog(
+  Future<_AdministrationResultAction?> _showPartialAdministrationResult(
+    List<VaccineInventory> administeredVaccines,
+  ) {
+    return showDialog<_AdministrationResultAction>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Row(
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: Colors.green),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Vaccination saved',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.orange),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Referral Required',
-                  style: TextStyle(fontWeight: FontWeight.w800),
+              Text(
+                'The administered vaccines were saved for '
+                '${widget.child.fullName} and deducted from inventory.',
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Administered today',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              ...administeredVaccines.map(
+                (vaccine) => _resultVaccineRow(
+                  vaccine.vaccineName,
+                  Icons.check_circle_outline_rounded,
+                  Colors.green,
                 ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Still needs referral',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              ...widget.unavailableVaccines.map(
+                (vaccine) => _resultVaccineRow(
+                  vaccine.vaccineName,
+                  Icons.warning_amber_rounded,
+                  Colors.orange,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Create one referral for all remaining unavailable vaccines, '
+                'or finish later. Uncompleted doses will remain visible in '
+                'the child\'s schedule.',
+                style: TextStyle(fontSize: 12.5, height: 1.4),
               ),
             ],
           ),
-          content: Text(
-            '$unavailableCount vaccine'
-            '${unavailableCount > 1 ? 's are' : ' is'} '
-            'still unavailable at this facility.\n\n'
-            'A referral can now be generated for '
-            'the remaining vaccine'
-            '${unavailableCount > 1 ? 's' : ''}.',
+        ),
+        actionsAlignment: MainAxisAlignment.end,
+        actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              _AdministrationResultAction.finishLater,
+            ),
+            child: const Text('Finish later'),
           ),
-          actionsAlignment: MainAxisAlignment.end,
-          actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Later'),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              _AdministrationResultAction.createReferral,
             ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(dialogContext);
+            icon: const Icon(Icons.qr_code_2_rounded),
+            label: const Text('Create referral'),
+          ),
+        ],
+      ),
+    );
+  }
 
-                _openReferral();
-              },
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(0, 44),
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-              ),
-              icon: const Icon(Icons.qr_code_2_rounded),
-              label: const Text('Create Referral'),
-            ),
-          ],
-        );
-      },
+  Widget _resultVaccineRow(String name, IconData icon, Color color) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(
+      children: [
+        Icon(icon, color: color, size: 19),
+        const SizedBox(width: 8),
+        Expanded(child: Text(name)),
+      ],
+    ),
+  );
+
+  void _openChildProfile(ChildProfileSection section) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChildProfileScreen(
+          child: widget.child,
+          initialSection: section,
+          repository: _vaccinationRepository,
+        ),
+      ),
     );
   }
 
   void _openReferral() {
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => ReferralScreen(

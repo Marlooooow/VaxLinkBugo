@@ -12,6 +12,7 @@ class GuardianInvitationIssueResult {
 
 abstract interface class GuardianInvitationIssuer {
   Future<GuardianInvitationIssueResult> issueGuardianInvitation(
-    String guardianId,
-  );
+    String guardianId, {
+    GuardianInvitationChannel channel = GuardianInvitationChannel.printedSlip,
+  });
 }

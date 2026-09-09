@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/external_vaccination/external_vaccination_record.dart';
 import '../models/referral.dart';
 import '../repositories/referral_repository.dart';
-import '../services/mock_identifier_generator.dart';
 import '../utils/user_facing_error.dart';
 
 class ReferralDetailsScreen extends StatefulWidget {
@@ -109,19 +108,12 @@ class _ReferralDetailsScreenState extends State<ReferralDetailsScreen> {
     setState(() => _saving = true);
     try {
       final now = DateTime.now();
-      final visitIdentity = _externalRecord == null
-          ? MockIdentifierGenerator.next(prefix: 'EV')
-          : null;
-      final recordIdentity = _externalRecord == null
-          ? MockIdentifierGenerator.next(prefix: 'VR')
-          : null;
       final record = ExternalVaccinationRecord(
-        recordId: _externalRecord?.recordId ?? recordIdentity!.id,
-        recordCode: _externalRecord?.recordCode ?? recordIdentity!.code,
+        recordId: _externalRecord?.recordId ?? '',
+        recordCode: _externalRecord?.recordCode ?? '',
         referralId: _referral.referralId,
-        externalVisitId: _externalRecord?.externalVisitId ?? visitIdentity!.id,
-        externalVisitCode:
-            _externalRecord?.externalVisitCode ?? visitIdentity!.code,
+        externalVisitId: _externalRecord?.externalVisitId ?? '',
+        externalVisitCode: _externalRecord?.externalVisitCode ?? '',
         childId: _referral.childId,
         vaccineId: _referral.vaccineId,
         vaccineAdministered: _vaccine.text.trim(),
@@ -159,10 +151,13 @@ class _ReferralDetailsScreenState extends State<ReferralDetailsScreen> {
         referral: _referral,
         record: record,
       );
+      final savedRecord = await widget.repository.getExternalVaccinationRecord(
+        updated.referralId,
+      );
       if (!mounted) return;
       setState(() {
         _referral = updated;
-        _externalRecord = record;
+        _externalRecord = savedRecord;
         _saving = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -191,7 +186,7 @@ class _ReferralDetailsScreenState extends State<ReferralDetailsScreen> {
     final completed = _referral.isCompleted;
     final statusColor = completed ? Colors.green : Colors.orange;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

@@ -151,7 +151,10 @@ class MockVaccinationRepository implements VaccinationRepository {
     List<VaccinationRecord> records,
   ) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    for (final record in records) {
+    final savedRecords = records
+        .map((record) => _withMockRecordIdentity(record))
+        .toList();
+    for (final record in savedRecords) {
       final duplicate = _records.values.any(
         (existing) =>
             existing.childId == record.childId &&
@@ -164,10 +167,10 @@ class MockVaccinationRepository implements VaccinationRepository {
         );
       }
     }
-    for (final record in records) {
+    for (final record in savedRecords) {
       _records[record.id] = record;
     }
-    return List.unmodifiable(records);
+    return List.unmodifiable(savedRecords);
   }
 
   @override
@@ -187,8 +190,9 @@ class MockVaccinationRepository implements VaccinationRepository {
     VaccinationScreening screening,
   ) async {
     await Future.delayed(const Duration(milliseconds: 250));
-    _screenings[screening.id] = screening;
-    return screening;
+    final saved = _withMockScreeningIdentity(screening);
+    _screenings[saved.id] = saved;
+    return saved;
   }
 
   @override
@@ -196,8 +200,9 @@ class MockVaccinationRepository implements VaccinationRepository {
     FirstVisitReview review,
   ) async {
     await Future.delayed(const Duration(milliseconds: 250));
-    _firstVisitReviews[review.childId] = review;
-    return review;
+    final saved = _withMockReviewIdentity(review);
+    _firstVisitReviews[saved.childId] = saved;
+    return saved;
   }
 
   @override
@@ -212,8 +217,82 @@ class MockVaccinationRepository implements VaccinationRepository {
     required List<VaccinationRecord> records,
     required Map<String, int> dosesByVaccineId,
   }) async {
-    await recordScreening(screening);
-    await recordVaccinations(records);
+    final savedScreening = await recordScreening(screening);
+    await recordVaccinations(
+      records
+          .map(
+            (record) =>
+                _withMockRecordIdentity(record, screeningId: savedScreening.id),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  static VaccinationRecord _withMockRecordIdentity(
+    VaccinationRecord record, {
+    String? screeningId,
+  }) {
+    final needsIdentity = record.id.isEmpty || record.recordCode.isEmpty;
+    if (!needsIdentity && screeningId == null) return record;
+    final identity = needsIdentity
+        ? MockIdentifierGenerator.next(prefix: 'VAX')
+        : MockIdentifier(id: record.id, code: record.recordCode);
+    return VaccinationRecord(
+      id: identity.id,
+      recordCode: identity.code,
+      childId: record.childId,
+      vaccineId: record.vaccineId,
+      vaccineName: record.vaccineName,
+      doseNumber: record.doseNumber,
+      dateAdministered: record.dateAdministered,
+      administeringFacility: record.administeringFacility,
+      healthWorkerName: record.healthWorkerName,
+      healthWorkerId: record.healthWorkerId,
+      source: record.source,
+      referralId: record.referralId,
+      externalVisitId: record.externalVisitId,
+      notes: record.notes,
+      recordedAt: record.recordedAt,
+      recordedByUserId: record.recordedByUserId,
+      screeningId: screeningId ?? record.screeningId,
+      evidenceType: record.evidenceType,
+    );
+  }
+
+  static VaccinationScreening _withMockScreeningIdentity(
+    VaccinationScreening screening,
+  ) {
+    if (screening.id.isNotEmpty && screening.screeningCode.isNotEmpty) {
+      return screening;
+    }
+    final identity = MockIdentifierGenerator.next(prefix: 'SCR');
+    return VaccinationScreening(
+      id: identity.id,
+      screeningCode: identity.code,
+      childId: screening.childId,
+      historyReviewed: screening.historyReviewed,
+      currentConditionAssessed: screening.currentConditionAssessed,
+      contraindicationsReviewed: screening.contraindicationsReviewed,
+      guardianConsentConfirmed: screening.guardianConsentConfirmed,
+      outcome: screening.outcome,
+      notes: screening.notes,
+      screenedAt: screening.screenedAt,
+      screenedByUserId: screening.screenedByUserId,
+    );
+  }
+
+  static FirstVisitReview _withMockReviewIdentity(FirstVisitReview review) {
+    if (review.id.isNotEmpty && review.reviewCode.isNotEmpty) return review;
+    final identity = MockIdentifierGenerator.next(prefix: 'FVR');
+    return FirstVisitReview(
+      id: identity.id,
+      reviewCode: identity.code,
+      childId: review.childId,
+      hasDocumentedPreviousVaccinations:
+          review.hasDocumentedPreviousVaccinations,
+      reviewedAt: DateTime.now(),
+      reviewedByUserId: '00000000-0000-4000-8000-000000000201',
+    );
   }
 
   static VaccinationRecord? linkedExternalRecord(String referralInternalId) {

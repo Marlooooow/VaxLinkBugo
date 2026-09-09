@@ -210,15 +210,17 @@ class SupabaseReferralRepository implements ReferralRepository {
     required String referralGroupId,
     String? verificationToken,
   }) async {
-    final result =
-        await _client.rpc(
-              'verify_live_referral_group',
-              params: {
-                'target_group_id': referralGroupId,
-                'supplied_token': verificationToken,
-              },
-            )
-            as String;
+    final payload = Map<String, dynamic>.from(
+      await _client.rpc(
+            'get_verified_referral_group',
+            params: {
+              'target_group_id': referralGroupId,
+              'supplied_token': verificationToken,
+            },
+          )
+          as Map,
+    );
+    final result = payload['status'] as String;
     if (result == 'not_found') {
       return const ReferralVerificationResult(
         status: ReferralVerificationStatus.notFound,
@@ -231,7 +233,19 @@ class SupabaseReferralRepository implements ReferralRepository {
         message: 'The QR verification code is invalid.',
       );
     }
-    final group = await getReferralGroup(referralGroupId);
+    final rawGroup = payload['group'];
+    final group = rawGroup is Map
+        ? ReferralGroup.fromJson(
+            Map<String, dynamic>.from(rawGroup),
+            referrals: (rawGroup['referrals'] as List? ?? const [])
+                .map(
+                  (item) => Referral.fromJson(
+                    Map<String, dynamic>.from(item as Map),
+                  ).copyWith(verificationToken: verificationToken),
+                )
+                .toList(growable: false),
+          )
+        : null;
     if (result == 'completed' || result == 'cancelled') {
       return ReferralVerificationResult(
         status: result == 'completed'
@@ -269,22 +283,37 @@ class SupabaseReferralRepository implements ReferralRepository {
       throw ArgumentError('Referral and vaccination record counts must match.');
     }
     final first = records.first;
-    await _client.rpc(
-      'record_external_vaccinations',
-      params: {
-        'target_group_id': referrals.first.referralGroupId,
-        'target_item_ids': referrals.map((item) => item.id).toList(),
-        'administered_on_date': first.dateAdministered
-            .toIso8601String()
-            .split('T')
-            .first,
-        'receiving_facility': first.administeringFacility,
-        'receiving_worker': first.healthWorkerName,
-        'visit_notes': first.notes,
-      },
+    final result = Map<String, dynamic>.from(
+      await _client.rpc(
+            'record_external_vaccinations',
+            params: {
+              'target_group_id': referrals.first.referralGroupId,
+              'target_item_ids': referrals.map((item) => item.id).toList(),
+              'administered_on_date': first.dateAdministered
+                  .toIso8601String()
+                  .split('T')
+                  .first,
+              'receiving_facility': first.administeringFacility,
+              'receiving_worker': first.healthWorkerName,
+              'visit_notes': first.notes,
+              'supplied_token': referrals.first.verificationToken,
+            },
+          )
+          as Map,
     );
+    final completedItems = {
+      for (final item in result['items'] as List? ?? const [])
+        (item as Map)['id'] as String: Map<String, dynamic>.from(item),
+    };
     return referrals
-        .map((item) => item.copyWith(status: 'Completed'))
+        .where((item) => completedItems.containsKey(item.id))
+        .map((item) {
+          final saved = completedItems[item.id]!;
+          return item.copyWith(
+            status: saved['status'] as String? ?? 'Completed',
+            completedAt: DateTime.parse(saved['completed_at'] as String),
+          );
+        })
         .toList(growable: false);
   }
 

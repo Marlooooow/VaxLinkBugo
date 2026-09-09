@@ -1,4 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/vaccination_reminder.dart';
 import '../models/reminder_follow_up.dart';
@@ -172,6 +179,10 @@ class _VaccinationRemindersScreenState
 
   Future<void> _performBatchAction(_BatchChoice choice) async {
     if (_selectedIds.isEmpty) return;
+    if (choice == _BatchChoice.printList) {
+      final exported = await _exportSelectedFollowUpList();
+      if (!exported) return;
+    }
     final live = RepositoryRegistry.instance.environment.isLive;
     final (action, outcome, message, notes, assignee) = switch (choice) {
       _BatchChoice.mockSms => (
@@ -195,8 +206,8 @@ class _VaccinationRemindersScreenState
       _BatchChoice.printList => (
         ReminderFollowUpAction.printedList,
         ReminderFollowUpOutcome.printed,
-        'Follow-up list prepared',
-        'Included in the mock printed follow-up list.',
+        'Follow-up list exported',
+        'Included in the generated follow-up PDF or CSV.',
         null,
       ),
       _BatchChoice.noAnswer => (
@@ -243,6 +254,168 @@ class _VaccinationRemindersScreenState
       ),
     );
   }
+
+  Future<bool> _exportSelectedFollowUpList() async {
+    final all = await _reminders;
+    final selected =
+        all
+            .where((item) => _selectedIds.contains(item.id))
+            .toList(growable: false)
+          ..sort((left, right) {
+            final child = left.childName.compareTo(right.childName);
+            return child != 0 ? child : left.dueDate.compareTo(right.dueDate);
+          });
+    if (selected.isEmpty || !mounted) return false;
+    final format = await showDialog<_FollowUpExportFormat>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Export follow-up list'),
+        content: Text(
+          '${selected.length} selected vaccine reminder${selected.length == 1 ? '' : 's'} will be included.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _FollowUpExportFormat.csv),
+            icon: const Icon(Icons.table_view_outlined),
+            label: const Text('CSV'),
+          ),
+          FilledButton.icon(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _FollowUpExportFormat.pdf),
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            label: const Text('PDF'),
+          ),
+        ],
+      ),
+    );
+    if (format == null) return false;
+    final fileStem =
+        'vaccination_follow_up_${DateTime.now().toIso8601String().split('T').first}';
+    if (format == _FollowUpExportFormat.pdf) {
+      return Printing.layoutPdf(
+        name: '$fileStem.pdf',
+        onLayout: (_) => _buildFollowUpPdf(selected),
+      );
+    }
+    final rows = <List<String>>[
+      [
+        'Reminder ID',
+        'Guardian ID',
+        'Guardian',
+        'Mobile number',
+        'Child',
+        'Vaccine',
+        'Dose',
+        'Status',
+        'Due date',
+      ],
+      for (final reminder in selected)
+        [
+          reminder.reminderCode,
+          reminder.guardianCode ?? reminder.guardianId,
+          reminder.guardianName ?? 'Not recorded',
+          reminder.guardianPhone ?? 'Not provided',
+          reminder.childName,
+          reminder.vaccineName,
+          reminder.doseNumber.toString(),
+          _statusLabel(reminder.status),
+          _date(reminder.dueDate),
+        ],
+    ];
+    final csv = rows.map((row) => row.map(_csvCell).join(',')).join('\r\n');
+    await SharePlus.instance.share(
+      ShareParams(
+        title: 'Vaccination Follow-up List',
+        files: [
+          XFile.fromData(
+            Uint8List.fromList(utf8.encode('\uFEFF$csv')),
+            mimeType: 'text/csv',
+          ),
+        ],
+        fileNameOverrides: ['$fileStem.csv'],
+      ),
+    );
+    return true;
+  }
+
+  Future<Uint8List> _buildFollowUpPdf(
+    List<VaccinationReminder> reminders,
+  ) async {
+    final document = pw.Document();
+    document.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.landscape,
+        margin: const pw.EdgeInsets.all(28),
+        header: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'Vaccination Follow-up List',
+              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              'Generated ${_dateTime(DateTime.now())} • ${reminders.length} vaccine reminders',
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+            pw.SizedBox(height: 10),
+          ],
+        ),
+        footer: (context) => pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text(
+            'Page ${context.pageNumber} of ${context.pagesCount}',
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+          ),
+        ),
+        build: (_) => [
+          pw.TableHelper.fromTextArray(
+            headers: const [
+              'Guardian',
+              'Guardian ID',
+              'Mobile',
+              'Child',
+              'Vaccine / Dose',
+              'Status',
+              'Due date',
+            ],
+            data: reminders
+                .map(
+                  (reminder) => [
+                    reminder.guardianName ?? 'Not recorded',
+                    reminder.guardianCode ?? reminder.guardianId,
+                    reminder.guardianPhone ?? 'Not provided',
+                    reminder.childName,
+                    '${reminder.vaccineName} Dose ${reminder.doseNumber}',
+                    _statusLabel(reminder.status),
+                    _date(reminder.dueDate),
+                  ],
+                )
+                .toList(growable: false),
+            headerStyle: pw.TextStyle(
+              fontSize: 8,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.white,
+            ),
+            headerDecoration: const pw.BoxDecoration(
+              color: PdfColors.blueGrey800,
+            ),
+            cellStyle: const pw.TextStyle(fontSize: 7.5),
+            cellPadding: const pw.EdgeInsets.all(4),
+            border: pw.TableBorder.all(color: PdfColors.grey400, width: .5),
+          ),
+        ],
+      ),
+    );
+    return document.save();
+  }
+
+  static String _csvCell(String value) => '"${value.replaceAll('"', '""')}"';
 
   Future<void> _chooseBatchAction() async {
     if (_batchSaving || _selectedIds.isEmpty) return;
@@ -300,25 +473,14 @@ class _VaccinationRemindersScreenState
                               _BatchChoice.assignToMe,
                             ),
                           ),
-                          if (!RepositoryRegistry.instance.environment.isLive)
-                            _BatchActionTile(
-                              icon: Icons.print_outlined,
-                              title: 'Record mock printed-list preparation',
-                              onTap: () => Navigator.pop(
-                                sheetContext,
-                                _BatchChoice.printList,
-                              ),
+                          _BatchActionTile(
+                            icon: Icons.print_outlined,
+                            title: 'Export follow-up list',
+                            onTap: () => Navigator.pop(
+                              sheetContext,
+                              _BatchChoice.printList,
                             ),
-                          if (RepositoryRegistry.instance.environment.isLive)
-                            const ListTile(
-                              leading: Icon(Icons.info_outline),
-                              title: Text(
-                                'Printed-list tools are not available yet',
-                              ),
-                              subtitle: Text(
-                                'SMS respects each guardian’s SMS preference and requires a valid mobile number.',
-                              ),
-                            ),
+                          ),
                           const Divider(indent: 16, endIndent: 16),
                           const ListTile(
                             title: Text(
@@ -377,7 +539,7 @@ class _VaccinationRemindersScreenState
       _BatchChoice.mockSms =>
         live ? 'Send SMS reminders' : 'Send mock SMS reminders',
       _BatchChoice.assignToMe => 'Assign follow-ups to me',
-      _BatchChoice.printList => 'Record mock list preparation',
+      _BatchChoice.printList => 'Export follow-up list',
       _BatchChoice.noAnswer => 'Record no answer',
       _BatchChoice.visitScheduled => 'Record visit scheduled',
       _BatchChoice.homeVisit => 'Mark for home visit',
@@ -388,7 +550,7 @@ class _VaccinationRemindersScreenState
             ? 'The selected vaccine reminders will be grouped into one SMS per guardian and child. Each message includes the child, vaccines, doses, statuses, and due dates. Acceptance confirms that the delivery request was submitted, not that it reached the phone. Select at most 20 vaccine reminders at a time.'
             : 'This simulates SMS delivery. No actual messages will be sent.',
       _BatchChoice.printList =>
-        'This records a prototype action only. It does not generate or print a document.',
+        'Generate a PDF for printing or a CSV file from the selected database-backed reminders.',
       _BatchChoice.visitScheduled =>
         'Only record this if a visit has already been confirmed. This does not create or reschedule an appointment.',
       _BatchChoice.noAnswer =>
@@ -1569,6 +1731,8 @@ enum _BatchChoice {
   visitScheduled,
   homeVisit,
 }
+
+enum _FollowUpExportFormat { pdf, csv }
 
 class _Detail extends StatelessWidget {
   final String label;

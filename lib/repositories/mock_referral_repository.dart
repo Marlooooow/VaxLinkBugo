@@ -220,17 +220,18 @@ class MockReferralRepository implements ReferralRepository {
     if (current.isCompleted || _records.containsKey(referral.referralId)) {
       throw StateError('This referral has already been completed.');
     }
+    final savedRecord = _withMockExternalIdentity(record);
 
     final completed = current.copyWith(
       status: 'Completed',
-      completedAt: record.recordedAt,
+      completedAt: savedRecord.recordedAt,
     );
-    _records[referral.referralId] = record;
+    _records[referral.referralId] = savedRecord;
     _referrals[referral.referralId] = completed;
     _syncGroup(referral.referralGroupId);
-    _storeVisit([record]);
+    _storeVisit([savedRecord]);
     await MockVaccinationRepository().recordVaccinations([
-      _historyRecord(current, record),
+      _historyRecord(current, savedRecord),
     ]);
     _lastReferralId = referral.referralId;
     return completed;
@@ -251,10 +252,24 @@ class MockReferralRepository implements ReferralRepository {
         throw StateError('${referral.vaccineName} is already completed.');
       }
     }
+    final visitIdentity =
+        records.any(
+          (record) =>
+              record.externalVisitId.isEmpty ||
+              record.externalVisitCode.isEmpty,
+        )
+        ? MockIdentifierGenerator.next(prefix: 'EV')
+        : null;
+    final savedRecords = records
+        .map(
+          (record) =>
+              _withMockExternalIdentity(record, visitIdentity: visitIdentity),
+        )
+        .toList(growable: false);
     final completed = <Referral>[];
     for (var index = 0; index < referrals.length; index++) {
       final referral = referrals[index];
-      final record = records[index];
+      final record = savedRecords[index];
       final updated = referral.copyWith(
         status: 'Completed',
         completedAt: record.recordedAt,
@@ -264,12 +279,45 @@ class MockReferralRepository implements ReferralRepository {
       completed.add(updated);
     }
     _syncGroup(referrals.first.referralGroupId);
-    _storeVisit(records);
+    _storeVisit(savedRecords);
     await MockVaccinationRepository().recordVaccinations([
       for (var index = 0; index < referrals.length; index++)
-        _historyRecord(referrals[index], records[index]),
+        _historyRecord(referrals[index], savedRecords[index]),
     ]);
     return completed;
+  }
+
+  static ExternalVaccinationRecord _withMockExternalIdentity(
+    ExternalVaccinationRecord record, {
+    MockIdentifier? visitIdentity,
+  }) {
+    final savedVisit =
+        record.externalVisitId.isEmpty || record.externalVisitCode.isEmpty
+        ? visitIdentity ?? MockIdentifierGenerator.next(prefix: 'EV')
+        : MockIdentifier(
+            id: record.externalVisitId,
+            code: record.externalVisitCode,
+          );
+    final savedRecord = record.recordId.isEmpty || record.recordCode.isEmpty
+        ? MockIdentifierGenerator.next(prefix: 'VR')
+        : MockIdentifier(id: record.recordId, code: record.recordCode);
+    return ExternalVaccinationRecord(
+      recordId: savedRecord.id,
+      recordCode: savedRecord.code,
+      referralId: record.referralId,
+      externalVisitId: savedVisit.id,
+      externalVisitCode: savedVisit.code,
+      childId: record.childId,
+      vaccineId: record.vaccineId,
+      vaccineAdministered: record.vaccineAdministered,
+      dateAdministered: record.dateAdministered,
+      administeringFacility: record.administeringFacility,
+      healthWorkerName: record.healthWorkerName,
+      notes: record.notes,
+      recordedAt: record.recordedAt,
+      updatedAt: record.updatedAt,
+      correctionReason: record.correctionReason,
+    );
   }
 
   @override

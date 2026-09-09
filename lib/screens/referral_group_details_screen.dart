@@ -5,9 +5,9 @@ import '../models/external_vaccination/external_vaccination_visit.dart';
 import '../models/referral.dart';
 import '../models/referral_verification_result.dart';
 import '../repositories/referral_repository.dart';
-import '../services/mock_identifier_generator.dart';
 import '../utils/user_facing_error.dart';
 import 'referral_details_screen.dart';
+import 'referral_history_screen.dart';
 import '../widgets/app_loading.dart';
 
 class ReferralGroupDetailsScreen extends StatefulWidget {
@@ -55,6 +55,7 @@ class _ReferralGroupDetailsScreenState
   Future<void> _verifyReferral() async {
     final result = await widget.repository.verifyReferralGroup(
       referralGroupId: _referrals.first.referralGroupId,
+      verificationToken: _referrals.first.verificationToken,
     );
     if (!mounted) return;
     setState(() {
@@ -111,6 +112,9 @@ class _ReferralGroupDetailsScreenState
       .map((item) => item.createdAt)
       .reduce((a, b) => a.isBefore(b) ? a : b);
 
+  bool get _canChangeAdministrationDate =>
+      !_sameCalendarDay(_referralIssuedAt, DateTime.now());
+
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final selected = await showDatePicker(
@@ -149,17 +153,16 @@ class _ReferralGroupDetailsScreenState
     if (selected.isEmpty) return;
 
     setState(() => _saving = true);
+    late List<Referral> completed;
     try {
       final now = DateTime.now();
-      final visitIdentity = MockIdentifierGenerator.next(prefix: 'EV');
       final records = selected.map((referral) {
-        final recordIdentity = MockIdentifierGenerator.next(prefix: 'VR');
         return ExternalVaccinationRecord(
-          recordId: recordIdentity.id,
-          recordCode: recordIdentity.code,
+          recordId: '',
+          recordCode: '',
           referralId: referral.referralId,
-          externalVisitId: visitIdentity.id,
-          externalVisitCode: visitIdentity.code,
+          externalVisitId: '',
+          externalVisitCode: '',
           childId: referral.childId,
           vaccineId: referral.vaccineId,
           vaccineAdministered: referral.vaccineName,
@@ -170,28 +173,9 @@ class _ReferralGroupDetailsScreenState
           recordedAt: now,
         );
       }).toList();
-      final completed = await widget.repository.recordExternalVaccinationBatch(
+      completed = await widget.repository.recordExternalVaccinationBatch(
         referrals: selected,
         records: records,
-      );
-      if (!mounted) return;
-      final completedById = {
-        for (final item in completed) item.referralId: item,
-      };
-      setState(() {
-        _referrals = _referrals
-            .map((item) => completedById[item.referralId] ?? item)
-            .toList();
-        _selectedIds.clear();
-        _verified = false;
-        _selectingVisit = false;
-        _documentVerified = false;
-        _saving = false;
-      });
-      await _loadVisits();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${completed.length} vaccination(s) recorded.')),
       );
     } catch (error) {
       if (!mounted) return;
@@ -205,6 +189,98 @@ class _ReferralGroupDetailsScreenState
                   'The external vaccination visit could not be saved. Please try again.',
             ),
           ),
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    final completedById = {for (final item in completed) item.id: item};
+    final token = _referrals.first.verificationToken;
+    setState(() {
+      _referrals = _referrals
+          .map((item) => completedById[item.id] ?? item)
+          .toList(growable: false);
+      _selectedIds.clear();
+      _verified = false;
+      _selectingVisit = false;
+      _documentVerified = false;
+      _saving = false;
+    });
+
+    var detailsRefreshed = true;
+    try {
+      final verification = await widget.repository.verifyReferralGroup(
+        referralGroupId: _referrals.first.referralGroupId,
+        verificationToken: token,
+      );
+      final refreshed = verification.referralGroup?.referrals ?? _referrals;
+      if (!mounted) return;
+      setState(() {
+        _referrals = refreshed
+            .map((item) => item.copyWith(verificationToken: token))
+            .toList(growable: false);
+      });
+      await _loadVisits();
+    } catch (_) {
+      detailsRefreshed = false;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          detailsRefreshed
+              ? '${completed.length} vaccination(s) recorded successfully.'
+              : '${completed.length} vaccination(s) were saved. Refresh to reload the visit details.',
+        ),
+      ),
+    );
+    if (_referrals.every((item) => item.isCompleted)) {
+      await _showReferralCompletionDialog(completed.length);
+    }
+  }
+
+  Future<void> _showReferralCompletionDialog(int recordedCount) async {
+    if (!mounted) return;
+    final openHistory = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: Colors.green),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Referral completed',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          '$recordedCount external vaccination record(s) were saved. '
+          'The referral is complete and the child\'s vaccination history '
+          'and reminders were updated.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('View completed details'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.history_rounded),
+            label: const Text('Referral history'),
+          ),
+        ],
+      ),
+    );
+    if (openHistory == true && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReferralHistoryScreen(repository: widget.repository),
         ),
       );
     }
@@ -323,7 +399,7 @@ class _ReferralGroupDetailsScreenState
     final primary = Theme.of(context).colorScheme.primary;
     final pending = _referrals.where((item) => item.isPending).toList();
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAFC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Text(
@@ -882,7 +958,17 @@ class _ReferralGroupDetailsScreenState
                 child: ElevatedButton(
                   onPressed: _selectedIds.isEmpty
                       ? null
-                      : () => setState(() => _verified = true),
+                      : () => setState(() {
+                          _verified = true;
+                          if (!_canChangeAdministrationDate) {
+                            final now = DateTime.now();
+                            _dateAdministered = DateTime(
+                              now.year,
+                              now.month,
+                              now.day,
+                            );
+                          }
+                        }),
                   child: const Text('Verify Visit'),
                 ),
               ),
@@ -943,12 +1029,19 @@ class _ReferralGroupDetailsScreenState
           ),
           const SizedBox(height: 12),
           InkWell(
-            onTap: _pickDate,
+            onTap: _saving || !_canChangeAdministrationDate ? null : _pickDate,
             child: InputDecorator(
               decoration: InputDecoration(
+                enabled: _canChangeAdministrationDate,
                 labelText: 'Date Administered',
-                helperText:
-                    'Select from ${_date(_referralIssuedAt)} through today',
+                helperText: !_canChangeAdministrationDate
+                    ? 'Automatically set to today because the referral was issued today.'
+                    : 'Select from ${_date(_referralIssuedAt)} through today. Future dates cannot be recorded.',
+                suffixIcon: Icon(
+                  _canChangeAdministrationDate
+                      ? Icons.calendar_month_outlined
+                      : Icons.lock_outline_rounded,
+                ),
                 border: const OutlineInputBorder(),
               ),
               child: Text(
@@ -1031,6 +1124,11 @@ class _ReferralGroupDetailsScreenState
           border: const OutlineInputBorder(),
         ),
       );
+
+  bool _sameCalendarDay(DateTime first, DateTime second) =>
+      first.year == second.year &&
+      first.month == second.month &&
+      first.day == second.day;
 
   Widget _completedSummary(Color primary) => Container(
     width: double.infinity,

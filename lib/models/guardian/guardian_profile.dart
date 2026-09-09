@@ -27,6 +27,7 @@ class GuardianProfile {
   final String? userId;
   final DateTime registeredAt;
   final String registeredByUserId;
+  final String? registeredByName;
 
   const GuardianProfile({
     required this.id,
@@ -48,6 +49,7 @@ class GuardianProfile {
     required this.userId,
     required this.registeredAt,
     required this.registeredByUserId,
+    this.registeredByName,
   }) : accessStatus =
            accessStatus ??
            (hasUserAccount
@@ -84,6 +86,7 @@ class GuardianProfile {
     bool clearInvitationExpiry = false,
     String? userId,
     bool clearUserId = false,
+    String? registeredByName,
   }) => GuardianProfile(
     id: id,
     guardianCode: guardianCode,
@@ -108,6 +111,7 @@ class GuardianProfile {
     userId: clearUserId ? null : userId ?? this.userId,
     registeredAt: registeredAt,
     registeredByUserId: registeredByUserId,
+    registeredByName: registeredByName ?? this.registeredByName,
   );
 
   Map<String, Object?> toJson() => {
@@ -130,6 +134,7 @@ class GuardianProfile {
     'user_id': userId,
     'registered_at': registeredAt.toIso8601String(),
     'registered_by_user_id': registeredByUserId,
+    'registered_by_name': registeredByName,
   };
 }
 

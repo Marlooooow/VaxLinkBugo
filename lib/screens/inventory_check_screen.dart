@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import '../models/child/child_profile.dart';
 import '../models/vaccine_inventory.dart';
 import '../repositories/inventory_repository.dart';
 import '../repositories/repository_registry.dart';
@@ -180,7 +180,7 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF7FAFC),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

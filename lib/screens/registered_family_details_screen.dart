@@ -6,6 +6,7 @@ import 'package:qr_code_based_pediatric_vaccination/models/child/child_correctio
 import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_registration.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_profile.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_correction.dart';
+import '../models/guardian/guardian_invitation.dart';
 import '../models/vaccination_schedule_state.dart';
 import '../repositories/child_repository.dart';
 import '../repositories/guardian_invitation_repository.dart';
@@ -40,6 +41,12 @@ class _RegisteredFamilyDetailsScreenState
   bool _issuingInvitation = false;
   bool _resettingGuardianPassword = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _refreshLiveFamily();
+  }
+
   Future<void> _refreshLiveFamily() async {
     if (!RepositoryRegistry.instance.environment.isLive) return;
     try {
@@ -63,30 +70,55 @@ class _RegisteredFamilyDetailsScreenState
     if (_issuingInvitation) return;
     final repository = RepositoryRegistry.instance.childRepository;
     if (repository is! GuardianInvitationIssuer) return;
-    final confirmed = await showDialog<bool>(
+    final channel = await showDialog<GuardianInvitationChannel>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Issue activation code?'),
-        content: const Text(
-          'Prepare a one-time code for this guardian. Any previous pending code will stop working. Give the new code to the guardian privately.',
+        title: const Text('Issue activation code'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Choose how to give the one-time activation code. Reissuing a code cancels any previous pending code.',
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.sms_outlined),
+              title: const Text('Send by SMS'),
+              subtitle: Text(
+                (family.guardian.phoneNumber ?? '').trim().isEmpty
+                    ? 'Add a valid mobile number first.'
+                    : family.guardian.phoneNumber!,
+              ),
+              enabled: (family.guardian.phoneNumber ?? '').trim().isNotEmpty,
+              onTap: () =>
+                  Navigator.pop(dialogContext, GuardianInvitationChannel.sms),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.print_outlined),
+              title: const Text('Print or hand over code'),
+              onTap: () => Navigator.pop(
+                dialogContext,
+                GuardianInvitationChannel.printedSlip,
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Issue code'),
           ),
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (channel == null || !mounted) return;
     setState(() => _issuingInvitation = true);
     try {
       final result = await (repository as GuardianInvitationIssuer)
-          .issueGuardianInvitation(family.guardian.id);
+          .issueGuardianInvitation(family.guardian.id, channel: channel);
       if (!mounted) return;
       await showGuardianActivationCodeDialog(
         context,
@@ -306,10 +338,6 @@ class _RegisteredFamilyDetailsScreenState
                     : _date(guardian.birthDate!),
               ),
               _DetailRow(label: 'Guardian ID', value: guardian.guardianCode),
-              _DetailRow(
-                label: 'Profile ID',
-                value: guardian.userId ?? 'Not linked — activation pending',
-              ),
               _DetailRow(label: 'Address', value: guardian.address),
               _DetailRow(
                 label: 'Mobile number',
@@ -413,9 +441,7 @@ class _RegisteredFamilyDetailsScreenState
               ),
               _DetailRow(
                 label: 'Registered by',
-                value: guardian.registeredByUserId.isEmpty
-                    ? 'Legacy record'
-                    : guardian.registeredByUserId,
+                value: guardian.registeredByName ?? 'Not recorded',
               ),
               _DetailRow(
                 label: 'Authorization',
@@ -502,7 +528,7 @@ class _ChildDetailsCard extends StatelessWidget {
         child.fullName,
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
-      subtitle: Text('${child.id}\n${child.relationship}'),
+      subtitle: Text('Child ID: ${child.qrIdentifier}\n${child.relationship}'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

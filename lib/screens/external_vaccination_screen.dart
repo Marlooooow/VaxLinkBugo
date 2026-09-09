@@ -7,7 +7,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../models/referral.dart';
 import '../repositories/referral_repository.dart';
-import '../services/mock_identifier_generator.dart';
 import '../widgets/worker_app_bar_actions.dart';
 import 'referral_group_details_screen.dart';
 import 'referral_history_screen.dart';
@@ -55,9 +54,10 @@ class _ExternalVaccinationScreenState extends State<ExternalVaccinationScreen> {
         verificationToken: payload['verification_token'] as String,
       );
       if (verification.canContinue) {
-        referrals = await _repository.getReferralGroupByReferralId(
-          verification.referralGroup!.referrals.first.referralId,
-        );
+        final token = payload['verification_token'] as String;
+        referrals = verification.referralGroup!.referrals
+            .map((item) => item.copyWith(verificationToken: token))
+            .toList(growable: false);
       }
     } catch (error) {
       if (mounted) {
@@ -403,7 +403,7 @@ class _ReferralQrScannerDialogState extends State<_ReferralQrScannerDialog> {
                         _scanned = true;
                         Navigator.pop(context, value.trim());
                       },
-                      errorBuilder: (_, __) => const Center(
+                      errorBuilder: (_, _) => const Center(
                         child: Text(
                           'Camera access is needed to scan. You may paste the QR content below.',
                         ),
@@ -444,7 +444,7 @@ class _ReferralQrScannerDialogState extends State<_ReferralQrScannerDialog> {
 }
 
 class _ReferralIdDialogState extends State<_ReferralIdDialog> {
-  final _controller = TextEditingController(text: 'REF-2026-000001');
+  final _controller = TextEditingController();
   String? _errorText;
 
   @override
@@ -455,7 +455,7 @@ class _ReferralIdDialogState extends State<_ReferralIdDialog> {
 
   void _submit() {
     final value = _controller.text.trim().toUpperCase();
-    if (!IdentifierFormats.referral.hasMatch(value)) {
+    if (!RegExp(r'^REF-\d{4}-\d{6}$').hasMatch(value)) {
       setState(() {
         _errorText = 'Use the format REF-YYYY-000000.';
       });

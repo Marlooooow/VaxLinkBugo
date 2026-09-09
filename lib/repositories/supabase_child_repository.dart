@@ -20,7 +20,9 @@ class SupabaseChildRepository
 
   static const _familySelect =
       '*, guardian_child_links(*, children(*)), '
-      'guardian_invitations(id, guardian_id, expires_at, status, issued_by, used_at, created_at)';
+      'registered_by_profile:profiles!guardians_registered_by_fkey(full_name), '
+      'guardian_invitations(id, guardian_id, expires_at, status, issued_by, used_at, created_at, '
+      'delivery_channel, delivery_status, destination_masked, delivered_at)';
   static const _requestSelect =
       '*, guardians!inner(full_name, sex, facility_id)';
 
@@ -43,7 +45,8 @@ class SupabaseChildRepository
         .select(_familySelect)
         .eq('facility_id', facility)
         .order('created_at', ascending: false);
-    return rows.map(familyFromRow).toList(growable: false);
+    final families = rows.map(familyFromRow).toList(growable: false);
+    return _attachRegisteredByNames(families);
   }
 
   @override
@@ -77,11 +80,21 @@ class SupabaseChildRepository
         .map((row) => Map<String, dynamic>.from(row as Map))
         .toList(growable: false);
     final hasMore = rows.length > safePageSize;
-    final pageRows = hasMore ? rows.take(safePageSize) : rows;
+    final pageRows = (hasMore ? rows.take(safePageSize) : rows).toList(
+      growable: false,
+    );
+    final registeredByNames = await _profileNamesById(
+      pageRows.map((row) {
+        final guardian = Map<String, dynamic>.from(row['guardian'] as Map);
+        return guardian['registered_by'] as String? ?? '';
+      }),
+    );
     final items = pageRows
         .map((row) {
-          final guardian = guardianFromRow(
-            Map<String, dynamic>.from(row['guardian'] as Map),
+          final guardianRow = Map<String, dynamic>.from(row['guardian'] as Map);
+          final guardian = guardianFromRow(guardianRow).copyWith(
+            registeredByName:
+                registeredByNames[guardianRow['registered_by'] as String?],
           );
           final children = <ChildProfile>[];
           final states = <String, VaccinationScheduleState>{};
@@ -135,7 +148,45 @@ class SupabaseChildRepository
         .select(_familySelect)
         .eq('id', guardianId)
         .maybeSingle();
-    return row == null ? null : familyFromRow(row);
+    if (row == null) return null;
+    final families = await _attachRegisteredByNames([familyFromRow(row)]);
+    return families.single;
+  }
+
+  Future<List<RegisteredFamily>> _attachRegisteredByNames(
+    List<RegisteredFamily> families,
+  ) async {
+    final names = await _profileNamesById(
+      families.map((family) => family.guardian.registeredByUserId),
+    );
+    return families
+        .map(
+          (family) => RegisteredFamily(
+            guardian: family.guardian.copyWith(
+              registeredByName: names[family.guardian.registeredByUserId],
+            ),
+            children: family.children,
+            links: family.links,
+            invitation: family.invitation,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<Map<String, String>> _profileNamesById(
+    Iterable<String> profileIds,
+  ) async {
+    final ids = profileIds.where((id) => id.isNotEmpty).toSet().toList();
+    if (ids.isEmpty) return const {};
+    final rows = await _client
+        .from('profiles')
+        .select('id, full_name')
+        .inFilter('id', ids);
+    return {
+      for (final row in rows)
+        if ((row['full_name'] as String).trim().isNotEmpty)
+          row['id'] as String: (row['full_name'] as String).trim(),
+    };
   }
 
   @override
@@ -224,9 +275,9 @@ class SupabaseChildRepository
     GuardianRegistrationRequest request,
   ) async {
     if (request.createUserAccount &&
-        request.invitationChannel != GuardianInvitationChannel.printedSlip) {
+        request.invitationChannel == GuardianInvitationChannel.email) {
       throw ArgumentError(
-        'Use a printed activation code. Live SMS and email delivery are not configured.',
+        'Email activation delivery is not configured. Choose SMS or a printed activation slip.',
       );
     }
     final row = Map<String, dynamic>.from(
@@ -254,7 +305,21 @@ class SupabaseChildRepository
           )
           as Map,
     );
-    final family = familyFromRow(row);
+    var family = familyFromRow(row);
+    if (request.createUserAccount &&
+        request.invitationChannel == GuardianInvitationChannel.sms &&
+        family.invitation != null) {
+      final delivered = await _deliverGuardianInvitationSms(
+        guardian: family.guardian,
+        invitation: family.invitation!,
+      );
+      family = RegisteredFamily(
+        guardian: family.guardian,
+        children: family.children,
+        links: family.links,
+        invitation: delivered,
+      );
+    }
     return GuardianRegistrationResult(
       guardian: family.guardian,
       children: family.children,
@@ -349,8 +414,9 @@ class SupabaseChildRepository
 
   @override
   Future<GuardianInvitationIssueResult> issueGuardianInvitation(
-    String guardianId,
-  ) async {
+    String guardianId, {
+    GuardianInvitationChannel channel = GuardianInvitationChannel.printedSlip,
+  }) async {
     final row = Map<String, dynamic>.from(
       await _client.rpc(
             'issue_guardian_invitation',
@@ -358,17 +424,79 @@ class SupabaseChildRepository
           )
           as Map,
     );
-    final invitation = invitationFromRow(
+    var invitation = invitationFromRow(
       row['invitation'] as Map<String, dynamic>,
     );
+    final guardian = guardianFromRow(row['guardian'] as Map<String, dynamic>)
+        .copyWith(
+          invitationCode: invitation.invitationCode,
+          invitationExpiresAt: invitation.expiresAt,
+        );
+    if (channel == GuardianInvitationChannel.sms) {
+      invitation = await _deliverGuardianInvitationSms(
+        guardian: guardian,
+        invitation: invitation,
+      );
+    }
     return GuardianInvitationIssueResult(
-      guardian: guardianFromRow(row['guardian'] as Map<String, dynamic>)
-          .copyWith(
-            invitationCode: invitation.invitationCode,
-            invitationExpiresAt: invitation.expiresAt,
-          ),
+      guardian: guardian,
       invitation: invitation,
     );
+  }
+
+  Future<GuardianInvitation> _deliverGuardianInvitationSms({
+    required GuardianProfile guardian,
+    required GuardianInvitation invitation,
+  }) async {
+    if ((guardian.phoneNumber ?? '').trim().isEmpty) {
+      return invitation.copyWith(status: GuardianInvitationStatus.failed);
+    }
+    try {
+      final response = await _client.functions.invoke(
+        'send-guardian-activation-sms',
+        body: {
+          'guardian_id': guardian.id,
+          'invitation_id': invitation.id,
+          'activation_code': invitation.invitationCode,
+        },
+      );
+      final data = response.data is Map
+          ? Map<String, dynamic>.from(response.data as Map)
+          : const <String, dynamic>{};
+      final accepted = data['accepted'] == true;
+      return GuardianInvitation(
+        id: invitation.id,
+        invitationCode: invitation.invitationCode,
+        guardianId: invitation.guardianId,
+        channel: GuardianInvitationChannel.sms,
+        destination: guardian.phoneNumber!,
+        maskedDestination:
+            data['recipient_masked'] as String? ?? 'Guardian mobile number',
+        status: accepted
+            ? GuardianInvitationStatus.delivered
+            : GuardianInvitationStatus.failed,
+        createdAt: invitation.createdAt,
+        deliveredAt: accepted ? DateTime.now() : null,
+        expiresAt: invitation.expiresAt,
+        acceptedAt: invitation.acceptedAt,
+        createdByUserId: invitation.createdByUserId,
+      );
+    } on FunctionException {
+      return GuardianInvitation(
+        id: invitation.id,
+        invitationCode: invitation.invitationCode,
+        guardianId: invitation.guardianId,
+        channel: GuardianInvitationChannel.sms,
+        destination: guardian.phoneNumber!,
+        maskedDestination: 'Guardian mobile number',
+        status: GuardianInvitationStatus.failed,
+        createdAt: invitation.createdAt,
+        deliveredAt: null,
+        expiresAt: invitation.expiresAt,
+        acceptedAt: invitation.acceptedAt,
+        createdByUserId: invitation.createdByUserId,
+      );
+    }
   }
 
   @override
@@ -528,7 +656,18 @@ class SupabaseChildRepository
         },
         registeredAt: DateTime.parse(row['created_at'] as String),
         registeredByUserId: row['registered_by'] as String? ?? '',
+        registeredByName: _registeredByName(row),
       );
+
+  static String? _registeredByName(Map<String, dynamic> row) {
+    final directName = (row['registered_by_name'] as String?)?.trim();
+    if (directName != null && directName.isNotEmpty) return directName;
+
+    final profile = row['registered_by_profile'];
+    if (profile is! Map) return null;
+    final relatedName = (profile['full_name'] as String?)?.trim();
+    return relatedName == null || relatedName.isEmpty ? null : relatedName;
+  }
 
   static GuardianChildLink linkFromRow(
     Map<String, dynamic> row,
@@ -600,20 +739,31 @@ class SupabaseChildRepository
       id: row['id'] as String,
       invitationCode: row['activation_code'] as String? ?? '',
       guardianId: row['guardian_id'] as String,
-      channel: GuardianInvitationChannel.printedSlip,
-      destination: 'Hand to guardian',
-      maskedDestination: 'Hand to guardian',
+      channel: switch (row['delivery_channel']) {
+        'sms' => GuardianInvitationChannel.sms,
+        'email' => GuardianInvitationChannel.email,
+        _ => GuardianInvitationChannel.printedSlip,
+      },
+      destination: row['destination_masked'] as String? ?? 'Hand to guardian',
+      maskedDestination:
+          row['destination_masked'] as String? ?? 'Hand to guardian',
       status: switch (row['status']) {
         'used' => GuardianInvitationStatus.accepted,
         'revoked' => GuardianInvitationStatus.revoked,
         'expired' => GuardianInvitationStatus.expired,
         _ =>
-          expiry.isAfter(DateTime.now())
-              ? GuardianInvitationStatus.pendingDelivery
-              : GuardianInvitationStatus.expired,
+          !expiry.isAfter(DateTime.now())
+              ? GuardianInvitationStatus.expired
+              : row['delivery_status'] == 'accepted'
+              ? GuardianInvitationStatus.delivered
+              : row['delivery_status'] == 'failed'
+              ? GuardianInvitationStatus.failed
+              : GuardianInvitationStatus.pendingDelivery,
       },
       createdAt: DateTime.parse(row['created_at'] as String),
-      deliveredAt: null,
+      deliveredAt: row['delivered_at'] == null
+          ? null
+          : DateTime.parse(row['delivered_at'] as String),
       expiresAt: expiry,
       acceptedAt: row['used_at'] == null
           ? null

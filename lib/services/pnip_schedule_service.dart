@@ -1,6 +1,5 @@
-import 'package:qr_code_based_pediatric_vaccination/models/child/child_profile.dart';
+import '../models/child/child_profile.dart';
 import '../models/pnip_schedule_entry.dart';
-import '../models/pnip_schedule_rule.dart';
 import '../models/vaccination_record.dart';
 
 class PnipScheduleService {
@@ -63,73 +62,6 @@ class PnipScheduleService {
             vaccineName: definition.vaccineName,
             doseNumber: definition.dose,
             scheduledDate: effectiveScheduledDate,
-            status: status,
-          );
-        })
-        .toList(growable: false);
-  }
-
-  /// Calculates a schedule from the versioned rules loaded from the live
-  /// database. Mock mode continues to use [calculate] and its local fixture.
-  List<PnipScheduleEntry> calculateFromRules({
-    required ChildProfile child,
-    required List<VaccinationRecord> history,
-    required List<PnipScheduleRule> rules,
-    DateTime? asOf,
-  }) {
-    final todayValue = asOf ?? DateTime.now();
-    final today = DateTime(todayValue.year, todayValue.month, todayValue.day);
-    final completedKeys = <String, VaccinationRecord>{
-      for (final record in history)
-        _key(record.vaccineId, record.doseNumber): record,
-    };
-
-    return rules
-        .map((rule) {
-          final record = completedKeys[_key(rule.vaccineId, rule.doseNumber)];
-          final previousRecord = rule.doseNumber > 1
-              ? completedKeys[_key(rule.vaccineId, rule.doseNumber - 1)]
-              : null;
-          final ageDate = child.birthDate.add(
-            Duration(days: rule.recommendedAgeDays),
-          );
-          final intervalDate =
-              previousRecord == null || rule.minimumIntervalDays == null
-              ? null
-              : previousRecord.dateAdministered.add(
-                  Duration(days: rule.minimumIntervalDays!),
-                );
-          final scheduledDate =
-              intervalDate != null && intervalDate.isAfter(ageDate)
-              ? intervalDate
-              : ageDate;
-
-          if (record != null) {
-            return PnipScheduleEntry(
-              vaccineId: rule.vaccineId,
-              vaccineName: rule.vaccineName,
-              doseNumber: rule.doseNumber,
-              scheduledDate: scheduledDate,
-              status: PnipDoseStatus.completed,
-              administeredDate: record.dateAdministered,
-              vaccinationRecordId: record.id,
-            );
-          }
-
-          final previousCompleted =
-              rule.doseNumber == 1 || previousRecord != null;
-          final status = !previousCompleted
-              ? PnipDoseStatus.notEligible
-              : scheduledDate.isAfter(today)
-              ? PnipDoseStatus.upcoming
-              : scheduledDate.isBefore(today)
-              ? PnipDoseStatus.overdue
-              : PnipDoseStatus.due;
-          return PnipScheduleEntry(
-            vaccineId: rule.vaccineId,
-            vaccineName: rule.vaccineName,
-            doseNumber: rule.doseNumber,
-            scheduledDate: scheduledDate,
             status: status,
           );
         })

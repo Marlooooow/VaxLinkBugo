@@ -30,6 +30,9 @@ class VaccinationReminder {
   final String id;
   final String reminderCode;
   final String guardianId;
+  final String? guardianCode;
+  final String? guardianName;
+  final String? guardianPhone;
   final String childId;
   final String childName;
   final String vaccineId;
@@ -46,6 +49,9 @@ class VaccinationReminder {
     required this.id,
     required this.reminderCode,
     required this.guardianId,
+    this.guardianCode,
+    this.guardianName,
+    this.guardianPhone,
     required this.childId,
     required this.childName,
     required this.vaccineId,
@@ -68,6 +74,9 @@ class VaccinationReminder {
     id: id,
     reminderCode: reminderCode,
     guardianId: guardianId,
+    guardianCode: guardianCode,
+    guardianName: guardianName,
+    guardianPhone: guardianPhone,
     childId: childId,
     childName: childName,
     vaccineId: vaccineId,
@@ -86,6 +95,9 @@ class VaccinationReminder {
         id: json['id'] as String,
         reminderCode: json['reminder_code'] as String,
         guardianId: json['guardian_id'] as String,
+        guardianCode: json['guardian_code'] as String?,
+        guardianName: json['guardian_name'] as String?,
+        guardianPhone: json['guardian_phone'] as String?,
         childId: json['child_id'] as String,
         childName: json['child_name'] as String,
         vaccineId: json['vaccine_id'] as String,
@@ -107,6 +119,9 @@ class VaccinationReminder {
     'id': id,
     'reminder_code': reminderCode,
     'guardian_id': guardianId,
+    'guardian_code': guardianCode,
+    'guardian_name': guardianName,
+    'guardian_phone': guardianPhone,
     'child_id': childId,
     'child_name': childName,
     'vaccine_id': vaccineId,

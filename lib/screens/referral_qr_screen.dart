@@ -8,7 +8,12 @@ import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:ui' as ui;
 
+import '../models/child/child_profile.dart';
 import '../models/referral.dart';
+import '../repositories/repository_registry.dart';
+import 'child_profile_screen.dart';
+import 'referral_group_details_screen.dart';
+import 'referral_history_screen.dart';
 
 String _verificationToken(List<Referral> referrals) {
   final token = referrals.first.verificationToken?.trim() ?? '';
@@ -23,8 +28,13 @@ String _verificationToken(List<Referral> referrals) {
 
 class ReferralQrScreen extends StatefulWidget {
   final List<Referral> referrals;
+  final ChildProfile child;
 
-  const ReferralQrScreen({super.key, required this.referrals});
+  const ReferralQrScreen({
+    super.key,
+    required this.referrals,
+    required this.child,
+  });
 
   @override
   State<ReferralQrScreen> createState() => _ReferralQrScreenState();
@@ -39,6 +49,7 @@ class _ReferralQrScreenState extends State<ReferralQrScreen> {
       children: [
         _QrDisplayView(
           referrals: widget.referrals,
+          childProfile: widget.child,
           onPrint: () {
             _printViewKey.currentState?._printReferral();
           },
@@ -62,9 +73,14 @@ class _ReferralQrScreenState extends State<ReferralQrScreen> {
 
 class _QrDisplayView extends StatelessWidget {
   final List<Referral> referrals;
+  final ChildProfile childProfile;
   final VoidCallback onPrint;
 
-  const _QrDisplayView({required this.referrals, required this.onPrint});
+  const _QrDisplayView({
+    required this.referrals,
+    required this.childProfile,
+    required this.onPrint,
+  });
 
   String _buildQrData() {
     final groupId = referrals.first.referralGroupId;
@@ -144,6 +160,32 @@ class _QrDisplayView extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 10),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline_rounded,
+                      color: Colors.green,
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Referral created successfully',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
 
               const Text(
                 'Vaccination Referral',
@@ -263,29 +305,66 @@ class _QrDisplayView extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 52,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        icon: const Icon(Icons.arrow_back_rounded),
-                        label: const Text('Back'),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: onPrint,
+                  icon: const Icon(Icons.print_rounded),
+                  label: const Text('Print referral'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ReferralGroupDetailsScreen(
+                        referrals: referrals,
+                        repository:
+                            RepositoryRegistry.instance.referralRepository,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  icon: const Icon(Icons.description_outlined),
+                  label: const Text('View referral details'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
                   Expanded(
-                    child: SizedBox(
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: onPrint,
-                        icon: const Icon(Icons.print_rounded),
-                        label: const Text('Print Referral'),
+                    child: TextButton(
+                      onPressed: () => Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ReferralHistoryScreen(
+                            repository:
+                                RepositoryRegistry.instance.referralRepository,
+                          ),
+                        ),
                       ),
+                      child: const Text('Referral history'),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChildProfileScreen(
+                            child: childProfile,
+                            initialSection: ChildProfileSection.upcoming,
+                            repository: RepositoryRegistry
+                                .instance
+                                .vaccinationRepository,
+                          ),
+                        ),
+                      ),
+                      child: const Text('Child profile'),
                     ),
                   ),
                 ],

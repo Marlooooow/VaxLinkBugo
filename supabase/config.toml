@@ -424,3 +424,6 @@ verify_jwt = false
 
 [functions.send-reminder-sms]
 verify_jwt = true
+
+[functions.send-guardian-activation-sms]
+verify_jwt = true

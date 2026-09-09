@@ -281,10 +281,14 @@ class SupabaseReminderRepository implements ReminderRepository {
   VaccinationReminder _fromRow(Map<String, dynamic> row) {
     final child = row['children'] as Map<String, dynamic>;
     final vaccine = row['vaccine_definitions'] as Map<String, dynamic>;
+    final guardian = row['guardians'] as Map<String, dynamic>?;
     return VaccinationReminder(
       id: row['id'] as String,
       reminderCode: row['reminder_code'] as String,
       guardianId: row['guardian_id'] as String,
+      guardianCode: guardian?['guardian_code'] as String?,
+      guardianName: guardian?['full_name'] as String?,
+      guardianPhone: guardian?['phone'] as String?,
       childId: row['child_id'] as String,
       childName: child['full_name'] as String,
       vaccineId: row['vaccine_id'] as String,
