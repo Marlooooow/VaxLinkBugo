@@ -202,7 +202,7 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  '${visible.length} of ${all.length} registration(s)',
+                  _resultCountLabel(visible.length, all.length),
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -224,6 +224,16 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
         },
       ),
     );
+  }
+
+  String _resultCountLabel(int visibleCount, int totalCount) {
+    if (_dashboardSelectionActive) {
+      return '$visibleCount families due or overdue • $totalCount total registered';
+    }
+    if (_filter != null || _searchController.text.trim().isNotEmpty) {
+      return '$visibleCount matching families • $totalCount total registered';
+    }
+    return '$totalCount registered families';
   }
 }
 

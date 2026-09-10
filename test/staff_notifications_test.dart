@@ -12,6 +12,8 @@ import 'package:qr_code_based_pediatric_vaccination/screens/vaccination_appointm
 
 class _Repository implements StaffNotificationRepository {
   StaffNotificationTarget target = StaffNotificationTarget.followUps;
+  int pageReads = 0;
+  int markReadCalls = 0;
   @override
   final ChangeNotifier changes = ChangeNotifier();
   final read = <String>{};
@@ -20,6 +22,7 @@ class _Repository implements StaffNotificationRepository {
   bool isRead(String userId, String id) => read.contains('$userId:$id');
   @override
   Future<void> markRead(String userId, Iterable<String> ids) async {
+    markReadCalls++;
     if (fail) throw StateError('private failure');
     read.addAll(ids.map((id) => '$userId:$id'));
     changes.notifyListeners();
@@ -46,6 +49,7 @@ class _Repository implements StaffNotificationRepository {
     int limit = 20,
     int offset = 0,
   }) async {
+    pageReads++;
     final all = await load();
     final unread = all.where((item) => !isRead(userId, item.id)).toList();
     final visible = unreadOnly ? unread : all;
@@ -137,6 +141,8 @@ void main() {
       expect(find.byType(ChildLinkRequestsScreen), findsOneWidget);
       expect(find.text('Notification details'), findsNothing);
       expect(repository.isRead('worker', 'daily'), isTrue);
+      expect(repository.markReadCalls, 1);
+      expect(repository.pageReads, 1);
       expect(tester.takeException(), isNull);
     },
   );

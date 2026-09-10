@@ -158,6 +158,16 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
     }
   }
 
+  Future<void> _reloadSilently() async {
+    try {
+      final page = await _fetchPage(reset: true);
+      if (!mounted) return;
+      setState(() => _items = Future.value(page));
+    } catch (_) {
+      // Keep the already displayed inbox when a background refresh fails.
+    }
+  }
+
   void _setUnreadFilter(bool unreadOnly) {
     setState(() => _unreadOnly = unreadOnly);
     _reload();
@@ -203,6 +213,53 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
     }
   }
 
+  Future<bool> _markOpenedNotificationRead(StaffNotification item) async {
+    if (widget.repository.isRead(widget.user.id, item.id)) return true;
+
+    try {
+      await widget.repository.markRead(widget.user.id, [item.id]);
+      if (!mounted) return false;
+
+      setState(() {
+        _unreadCount = (_unreadCount - 1).clamp(0, _unreadCount).toInt();
+        if (_unreadOnly) {
+          final previousLength = _loadedItems.length;
+          _loadedItems.removeWhere(
+            (notification) => notification.id == item.id,
+          );
+          final removed = previousLength - _loadedItems.length;
+          if (removed > 0) {
+            _totalCount = (_totalCount - removed).clamp(0, _totalCount).toInt();
+            _nextOffset = (_nextOffset - removed).clamp(0, _nextOffset).toInt();
+            _hasMore = _loadedItems.length < _totalCount;
+          }
+        }
+        _items = Future.value(
+          StaffNotificationPage(
+            items: List.unmodifiable(_loadedItems),
+            overallCount: _overallCount,
+            totalCount: _totalCount,
+            unreadCount: _unreadCount,
+            hasMore: _hasMore,
+            nextOffset: _nextOffset,
+          ),
+        );
+      });
+      return true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not mark this notification as read. Please try again.',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
   Future<void> _open(StaffNotification item) async {
     if (item.target != StaffNotificationTarget.followUps &&
         (item.entityId == null || item.entityId!.trim().isEmpty)) {
@@ -217,9 +274,9 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
     }
     if (!mounted) return;
 
-    await _read([item.id]);
+    final canOpen = await _markOpenedNotificationRead(item);
 
-    if (!mounted) return;
+    if (!mounted || !canOpen) return;
     final Widget destination = switch (item.target) {
       StaffNotificationTarget.requests => ChildLinkRequestsScreen(
         healthWorker: widget.user,
@@ -256,7 +313,7 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
       context,
       MaterialPageRoute(builder: (_) => destination),
     );
-    if (mounted) await _reload();
+    if (mounted) await _reloadSilently();
   }
 
   @override

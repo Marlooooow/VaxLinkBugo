@@ -286,6 +286,8 @@ class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
                   (insight) => _InsightCard(
                     key: ValueKey(insight.id),
                     insight: insight,
+                    currentUserId: widget.healthWorker.id,
+                    currentUserName: widget.healthWorker.fullName,
                     initiallyExpanded: _focusedInsightId == insight.id,
                     saving: _saving.contains(insight.id),
                     onReviewed: () =>
@@ -469,6 +471,8 @@ class _InsightCard extends StatelessWidget {
   final bool initiallyExpanded;
   final bool saving;
   final AdvisoryInsight insight;
+  final String currentUserId;
+  final String currentUserName;
   final VoidCallback onReviewed;
   final VoidCallback onDismissed;
 
@@ -477,6 +481,8 @@ class _InsightCard extends StatelessWidget {
     this.initiallyExpanded = false,
     required this.saving,
     required this.insight,
+    required this.currentUserId,
+    required this.currentUserName,
     required this.onReviewed,
     required this.onDismissed,
   });
@@ -580,18 +586,7 @@ class _InsightCard extends StatelessWidget {
                 .map((entry) => '${_label(entry.key)}: ${entry.value}')
                 .join('\n'),
           ),
-          _section(
-            'Audit',
-            '${insight.insightCode}\n${insight.analysisProvider} • ${insight.analysisVersion}',
-          ),
-          if (!pending)
-            _section(
-              'Review status',
-              insight.status == AdvisoryInsightStatus.dismissed
-                  ? 'Dismissed. Retained here for audit history.'
-                  : 'Reviewed. Your review has been saved.',
-              valueColor: statusColor,
-            ),
+          _systemRecord(context),
           if (pending) ...[
             const SizedBox(height: 10),
             SizedBox(
@@ -632,6 +627,59 @@ class _InsightCard extends StatelessWidget {
       ),
     ),
   );
+
+  Widget _systemRecord(BuildContext context) {
+    final reviewedBy = insight.reviewedByName?.trim().isNotEmpty == true
+        ? insight.reviewedByName!.trim()
+        : insight.reviewedByUserId == currentUserId
+        ? currentUserName
+        : 'Health-center staff';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 11),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'System record',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+          ),
+          const SizedBox(height: 5),
+          _recordRow('Source', _providerLabel(insight.analysisProvider)),
+          _recordRow('Generated', _dateTime(context, insight.generatedAt)),
+          _recordRow('Status', _statusLabel(insight.status)),
+          if (insight.reviewedAt != null) ...[
+            _recordRow('Reviewed by', reviewedBy),
+            _recordRow('Reviewed on', _dateTime(context, insight.reviewedAt!)),
+          ],
+          _recordRow(
+            'Reference ID',
+            insight.referenceCode ?? insight.insightCode,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recordRow(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 118,
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        Expanded(
+          child: Text(value, softWrap: true, overflow: TextOverflow.visible),
+        ),
+      ],
+    ),
+  );
+
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -682,3 +730,24 @@ String _label(String value) => value
           part.isEmpty ? part : '${part[0].toUpperCase()}${part.substring(1)}',
     )
     .join(' ');
+
+String _providerLabel(String provider) => switch (provider) {
+  'database-rule-engine' => 'Automated database rules',
+  'mock-advisory-engine' => 'Prototype advisory rules',
+  _ => 'Automated advisory service',
+};
+
+String _statusLabel(AdvisoryInsightStatus status) => switch (status) {
+  AdvisoryInsightStatus.newInsight => 'Unreviewed',
+  AdvisoryInsightStatus.reviewed => 'Reviewed',
+  AdvisoryInsightStatus.actioned => 'Actioned',
+  AdvisoryInsightStatus.dismissed => 'Dismissed',
+};
+
+String _dateTime(BuildContext context, DateTime value) {
+  final local = value.toLocal();
+  final localizations = MaterialLocalizations.of(context);
+  final date = '${localizations.formatShortMonthDay(local)}, ${local.year}';
+  final time = localizations.formatTimeOfDay(TimeOfDay.fromDateTime(local));
+  return '$date • $time';
+}

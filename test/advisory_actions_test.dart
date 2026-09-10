@@ -15,6 +15,7 @@ class _Repository implements AdvisoryInsightRepository {
   AdvisoryInsight item = AdvisoryInsight(
     id: 'insight',
     insightCode: 'AI-1',
+    referenceCode: 'ADV-2026-000001',
     type: AdvisoryInsightType.stockRisk,
     severity: AdvisoryInsightSeverity.high,
     status: AdvisoryInsightStatus.newInsight,
@@ -127,6 +128,35 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Staff can see the insight reference without technical fields', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: AdvisoryInsightsScreen(
+          repository: _Repository(),
+          initialInsightId: 'insight',
+          healthWorker: const AppUser(
+            id: 'worker',
+            fullName: 'Worker',
+            role: UserRole.healthWorker,
+            active: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Reference ID'), findsOneWidget);
+    expect(find.text('ADV-2026-000001'), findsOneWidget);
+    expect(find.text('AI-1'), findsNothing);
+    expect(find.text('Technical details'), findsNothing);
+    expect(find.text('Processing provider'), findsNothing);
+    expect(find.text('Rule version'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final target in ['insight', 'missing-insight']) {
     testWidgets('Notification opens exact insight: $target', (tester) async {
       await tester.pumpWidget(

@@ -9,6 +9,7 @@ import '../models/vaccination_progress.dart';
 import '../models/vaccination_reminder.dart';
 import '../repositories/reminder_repository.dart';
 import '../screens/vaccination_reminders_screen.dart';
+import 'app_loading.dart';
 import 'dashboard_stat_grid.dart';
 import 'dashboard_charts.dart';
 
@@ -158,10 +159,7 @@ class _GuardianDashboardChildrenState extends State<GuardianDashboardChildren> {
     builder: (context, snapshot) {
       if (!snapshot.hasData &&
           snapshot.connectionState != ConnectionState.done) {
-        return const Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('Loading your children’s progress…'),
-        );
+        return const _GuardianDashboardLoadingCard();
       }
       if (snapshot.hasError) {
         return TextButton.icon(
@@ -366,6 +364,43 @@ class _GuardianDashboardChildrenState extends State<GuardianDashboardChildren> {
         ],
       );
     },
+  );
+}
+
+class _GuardianDashboardLoadingCard extends StatelessWidget {
+  const _GuardianDashboardLoadingCard();
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.only(bottom: 16),
+    child: SizedBox(
+      height: 460,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AppLoadingIndicator(size: 42),
+              const SizedBox(height: 16),
+              const Text(
+                'Loading child summary',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Preparing vaccination progress and reminders.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
   );
 }
 

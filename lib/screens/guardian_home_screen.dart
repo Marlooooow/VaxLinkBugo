@@ -264,7 +264,7 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen>
                   future: _reminderRows,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState != ConnectionState.done) {
-                      return const Text('Loading reminders…');
+                      return const _GuardianReminderLoadingCard();
                     }
                     if (snapshot.hasError) {
                       return TextButton(
@@ -460,6 +460,47 @@ class _FeatureCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _GuardianReminderLoadingCard extends StatelessWidget {
+  const _GuardianReminderLoadingCard();
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: EdgeInsets.zero,
+    child: SizedBox(
+      height: 96,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: Row(
+          children: [
+            const AppLoadingIndicator(size: 34),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Loading reminder summary',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Checking due and overdue vaccinations.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _InfoBox extends StatelessWidget {

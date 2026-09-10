@@ -10,7 +10,9 @@ class SupabaseAdvisoryInsightRepository
 
   SupabaseAdvisoryInsightRepository(this._client);
 
-  static const _select = '*, children(full_name), vaccine_definitions(name)';
+  static const _select =
+      '*, children(full_name), vaccine_definitions(name), '
+      'reviewed_by_profile:profiles!advisory_insights_reviewed_by_fkey(full_name)';
 
   @override
   Future<List<AdvisoryInsight>> getFacilityInsights() async {
@@ -110,9 +112,11 @@ class SupabaseAdvisoryInsightRepository
   AdvisoryInsight _fromRow(Map<String, dynamic> row) {
     final child = row['children'] as Map<String, dynamic>?;
     final vaccine = row['vaccine_definitions'] as Map<String, dynamic>?;
+    final reviewer = row['reviewed_by_profile'] as Map<String, dynamic>?;
     return AdvisoryInsight(
       id: row['id'] as String,
       insightCode: row['insight_code'] as String,
+      referenceCode: row['reference_code'] as String?,
       type: AdvisoryInsightType.values.byName(_camel(row['type'] as String)),
       severity: AdvisoryInsightSeverity.values.byName(
         row['severity'] as String,
@@ -141,6 +145,7 @@ class SupabaseAdvisoryInsightRepository
           ? null
           : DateTime.parse(row['reviewed_at'] as String),
       reviewedByUserId: row['reviewed_by'] as String?,
+      reviewedByName: reviewer?['full_name'] as String?,
     );
   }
 

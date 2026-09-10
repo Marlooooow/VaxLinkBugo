@@ -35,6 +35,7 @@ class AdvisoryInsightPage {
 class AdvisoryInsight {
   final String id;
   final String insightCode;
+  final String? referenceCode;
   final AdvisoryInsightType type;
   final AdvisoryInsightSeverity severity;
   final AdvisoryInsightStatus status;
@@ -53,10 +54,12 @@ class AdvisoryInsight {
   final DateTime generatedAt;
   final DateTime? reviewedAt;
   final String? reviewedByUserId;
+  final String? reviewedByName;
 
   const AdvisoryInsight({
     required this.id,
     required this.insightCode,
+    this.referenceCode,
     required this.type,
     required this.severity,
     required this.status,
@@ -75,15 +78,18 @@ class AdvisoryInsight {
     required this.generatedAt,
     this.reviewedAt,
     this.reviewedByUserId,
+    this.reviewedByName,
   });
 
   AdvisoryInsight copyWith({
     AdvisoryInsightStatus? status,
     DateTime? reviewedAt,
     String? reviewedByUserId,
+    String? reviewedByName,
   }) => AdvisoryInsight(
     id: id,
     insightCode: insightCode,
+    referenceCode: referenceCode,
     type: type,
     severity: severity,
     status: status ?? this.status,
@@ -102,11 +108,13 @@ class AdvisoryInsight {
     generatedAt: generatedAt,
     reviewedAt: reviewedAt ?? this.reviewedAt,
     reviewedByUserId: reviewedByUserId ?? this.reviewedByUserId,
+    reviewedByName: reviewedByName ?? this.reviewedByName,
   );
 
   Map<String, Object?> toJson() => {
     'id': id,
     'insight_code': insightCode,
+    'reference_code': referenceCode,
     'type': type.name,
     'severity': severity.name,
     'status': status.name,
@@ -125,5 +133,6 @@ class AdvisoryInsight {
     'generated_at': generatedAt.toIso8601String(),
     'reviewed_at': reviewedAt?.toIso8601String(),
     'reviewed_by_user_id': reviewedByUserId,
+    'reviewed_by_name': reviewedByName,
   };
 }

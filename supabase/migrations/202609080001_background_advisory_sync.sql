@@ -84,7 +84,7 @@ begin
       'source', 'reminders'
     ),
     'database-rule-engine',
-    'phase9-child-advisory-v2-background',
+    'child-overdue-advisory-v2',
     'new_insight',
     now(),
     now()
