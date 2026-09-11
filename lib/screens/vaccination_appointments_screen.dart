@@ -7,6 +7,7 @@ import '../repositories/appointment_repository.dart';
 import 'appointment_form_screen.dart';
 import 'earlier_appointment_offers_screen.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/worker_app_bar_actions.dart';
 import '../widgets/guardian_app_bar_actions.dart';
 import '../models/app_user.dart';
@@ -70,9 +71,10 @@ class _VaccinationAppointmentsScreenState
   }
 
   void _reload() {
-    _appointments = widget.healthWorkerMode
-        ? _loadAppointmentPage(reset: true)
-        : _repository.getGuardianAppointments(widget.guardianId!);
+    _nextOffset = 0;
+    _hasMore = false;
+    _totalCount = 0;
+    _appointments = _loadAppointmentPage(reset: true);
     _pendingOfferCount = widget.healthWorkerMode
         ? _repository
               .getFacilitySlotOffersPage(
@@ -81,27 +83,31 @@ class _VaccinationAppointmentsScreenState
               )
               .then((page) => page.pendingCount)
         : _repository
-              .getGuardianSlotOffers(widget.guardianId!)
-              .then(
-                (offers) => offers
-                    .where(
-                      (offer) =>
-                          offer.status == AppointmentSlotOfferStatus.pending,
-                    )
-                    .length,
-              );
+              .getGuardianSlotOffersPage(
+                widget.guardianId!,
+                status: AppointmentSlotOfferStatus.pending,
+                limit: 1,
+              )
+              .then((page) => page.pendingCount);
   }
 
   Future<List<VaccinationAppointment>> _loadAppointmentPage({
     required bool reset,
   }) async {
-    final page = await _repository.getFacilityAppointmentsPage(
-      initialAppointmentId: widget.initialAppointmentId,
-      waitlistVaccineId: widget.waitlistVaccineId,
-      waitlistOnly: widget.waitlistOnly,
-      limit: 20,
-      offset: reset ? 0 : _nextOffset,
-    );
+    final page = widget.healthWorkerMode
+        ? await _repository.getFacilityAppointmentsPage(
+            initialAppointmentId: widget.initialAppointmentId,
+            waitlistVaccineId: widget.waitlistVaccineId,
+            waitlistOnly: widget.waitlistOnly,
+            limit: 20,
+            offset: reset ? 0 : _nextOffset,
+          )
+        : await _repository.getGuardianAppointmentsPage(
+            widget.guardianId!,
+            initialAppointmentId: widget.initialAppointmentId,
+            limit: 20,
+            offset: reset ? 0 : _nextOffset,
+          );
     if (reset) _loadedAppointments.clear();
     final ids = _loadedAppointments.map((item) => item.id).toSet();
     _loadedAppointments.addAll(page.items.where((item) => ids.add(item.id)));
@@ -112,11 +118,15 @@ class _VaccinationAppointmentsScreenState
   }
 
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasMore || !widget.healthWorkerMode) return;
+    if (_loadingMore || !_hasMore) return;
     setState(() => _loadingMore = true);
     try {
       final items = await _loadAppointmentPage(reset: false);
-      if (mounted) setState(() => _appointments = Future.value(items));
+      if (mounted) {
+        setState(() {
+          _appointments = Future.value(items);
+        });
+      }
     } finally {
       if (mounted) setState(() => _loadingMore = false);
     }
@@ -134,8 +144,9 @@ class _VaccinationAppointmentsScreenState
     );
     if (result != null && mounted) {
       setState(_reload);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Appointment rescheduled successfully.')),
+      AppFeedback.success(
+        context,
+        message: 'Appointment rescheduled successfully.',
       );
     }
   }
@@ -273,7 +284,7 @@ class _VaccinationAppointmentsScreenState
                   onReschedule: () => _reschedule(item),
                 ),
               ),
-            if (widget.healthWorkerMode && items.isNotEmpty) ...[
+            if (items.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(
                 'Showing ${items.length} of $_totalCount appointments',

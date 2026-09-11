@@ -151,6 +151,48 @@ class MockAppointmentRepository implements AppointmentRepository {
   }
 
   @override
+  Future<AppointmentPage> getGuardianAppointmentsPage(
+    String guardianId, {
+    String? initialAppointmentId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final all = (await getGuardianAppointments(guardianId))
+        .where(
+          (item) =>
+              initialAppointmentId == null || item.id == initialAppointmentId,
+        )
+        .toList(growable: false);
+    final items = all.skip(offset).take(limit).toList(growable: false);
+    return AppointmentPage(
+      items: items,
+      totalCount: all.length,
+      hasMore: offset + items.length < all.length,
+      nextOffset: offset + items.length,
+    );
+  }
+
+  @override
+  Future<List<VaccinationAppointment>> getGuardianUpcomingAppointments(
+    String guardianId, {
+    int limit = 2,
+  }) async {
+    final today = MockScenarioClock.today;
+    return (await getGuardianAppointments(guardianId))
+        .where(
+          (item) =>
+              !item.appointmentDate.isBefore(today) &&
+              {
+                VaccinationAppointmentStatus.scheduled,
+                VaccinationAppointmentStatus.confirmed,
+                VaccinationAppointmentStatus.checkedIn,
+              }.contains(item.status),
+        )
+        .take(limit)
+        .toList(growable: false);
+  }
+
+  @override
   Future<List<VaccinationAppointment>> getChildAppointments(
     String childId,
   ) async => _sorted(_appointments.where((item) => item.childId == childId));
@@ -221,6 +263,33 @@ class MockAppointmentRepository implements AppointmentRepository {
         (item) =>
             item.guardianId == guardianId || item.guardianId == canonicalId,
       ),
+    );
+  }
+
+  @override
+  Future<AppointmentOfferPage> getGuardianSlotOffersPage(
+    String guardianId, {
+    AppointmentSlotOfferStatus? status,
+    String? initialOfferId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final all = await getGuardianSlotOffers(guardianId);
+    final matching = all
+        .where((offer) {
+          if (initialOfferId != null) return offer.id == initialOfferId;
+          return status == null || offer.status == status;
+        })
+        .toList(growable: false);
+    final items = matching.skip(offset).take(limit).toList(growable: false);
+    return AppointmentOfferPage(
+      items: items,
+      totalCount: matching.length,
+      pendingCount: all
+          .where((offer) => offer.status == AppointmentSlotOfferStatus.pending)
+          .length,
+      hasMore: offset + items.length < matching.length,
+      nextOffset: offset + items.length,
     );
   }
 

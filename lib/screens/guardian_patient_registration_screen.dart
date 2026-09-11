@@ -33,6 +33,16 @@ class GuardianPatientRegistrationScreen extends StatefulWidget {
 class _GuardianPatientRegistrationScreenState
     extends State<GuardianPatientRegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _guardianFirstNameFieldKey = GlobalKey();
+  final _guardianLastNameFieldKey = GlobalKey();
+  final _guardianBirthDateFieldKey = GlobalKey();
+  final _phoneFieldKey = GlobalKey();
+  final _emailFieldKey = GlobalKey();
+  final _addressFieldKey = GlobalKey();
+  final _childFirstNameFieldKey = GlobalKey();
+  final _childLastNameFieldKey = GlobalKey();
+  final _childBirthDateFieldKey = GlobalKey();
+  final _authorizationFieldKey = GlobalKey();
   final ChildRepository _repository =
       RepositoryRegistry.instance.childRepository;
   final _guardianFirstName = TextEditingController();
@@ -48,6 +58,11 @@ class _GuardianPatientRegistrationScreenState
   final _childSuffix = TextEditingController();
   DateTime? _guardianBirthDate;
   DateTime? _birthDate;
+  String? _guardianBirthDateError;
+  String? _birthDateError;
+  String? _phoneError;
+  String? _emailError;
+  String? _authorizationError;
   String _guardianSex = 'Female';
   String _sex = 'Female';
   String _relationship = 'Mother';
@@ -103,7 +118,12 @@ class _GuardianPatientRegistrationScreenState
       lastDate: now,
       helpText: 'SELECT CHILD BIRTH DATE',
     );
-    if (selected != null) setState(() => _birthDate = selected);
+    if (selected != null) {
+      setState(() {
+        _birthDate = selected;
+        _birthDateError = null;
+      });
+    }
   }
 
   Future<void> _selectGuardianBirthDate() async {
@@ -116,7 +136,12 @@ class _GuardianPatientRegistrationScreenState
       lastDate: now,
       helpText: 'SELECT GUARDIAN BIRTH DATE',
     );
-    if (selected != null) setState(() => _guardianBirthDate = selected);
+    if (selected != null) {
+      setState(() {
+        _guardianBirthDate = selected;
+        _guardianBirthDateError = null;
+      });
+    }
   }
 
   PersonName get _guardianStructuredName => PersonName(
@@ -133,46 +158,77 @@ class _GuardianPatientRegistrationScreenState
     suffix: _childSuffix.text,
   );
 
-  Future<void> _review() async {
-    if (!_formKey.currentState!.validate()) return;
+  GlobalKey? _firstMissingRequiredField() {
+    if (_guardianFirstName.text.trim().isEmpty) {
+      return _guardianFirstNameFieldKey;
+    }
+    if (_guardianLastName.text.trim().isEmpty) {
+      return _guardianLastNameFieldKey;
+    }
+    if (_guardianBirthDate == null) return _guardianBirthDateFieldKey;
     if (_createAccount &&
         _invitationChannel == GuardianInvitationChannel.sms &&
         _phone.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter a mobile number for the SMS invitation.'),
-        ),
-      );
-      return;
+      return _phoneFieldKey;
     }
     if (_createAccount &&
         _invitationChannel == GuardianInvitationChannel.email &&
         _email.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter an email address for the mock invitation.'),
-        ),
-      );
-      return;
+      return _emailFieldKey;
     }
-    if (_birthDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select the child birth date.')),
-      );
-      return;
+    if (_address.text.trim().isEmpty) return _addressFieldKey;
+    if (_childFirstName.text.trim().isEmpty) {
+      return _childFirstNameFieldKey;
     }
-    if (_guardianBirthDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select the guardian birth date.')),
-      );
-      return;
-    }
-    if (!_authorizationConfirmed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Confirm the guardian authorization before saving.'),
-        ),
-      );
+    if (_childLastName.text.trim().isEmpty) return _childLastNameFieldKey;
+    if (_birthDate == null) return _childBirthDateFieldKey;
+    if (!_authorizationConfirmed) return _authorizationFieldKey;
+    return null;
+  }
+
+  Future<void> _scrollToField(GlobalKey fieldKey) async {
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final fieldContext = fieldKey.currentContext;
+    if (fieldContext == null || !fieldContext.mounted) return;
+    await Scrollable.ensureVisible(
+      fieldContext,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      alignment: 0.18,
+    );
+  }
+
+  Future<void> _review() async {
+    final formIsValid = _formKey.currentState!.validate();
+    final firstMissingField = _firstMissingRequiredField();
+    setState(() {
+      _birthDateError = _birthDate == null
+          ? 'Select the child’s birth date.'
+          : null;
+      _guardianBirthDateError = _guardianBirthDate == null
+          ? 'Select the guardian’s birth date.'
+          : null;
+      _phoneError =
+          _createAccount &&
+              _invitationChannel == GuardianInvitationChannel.sms &&
+              _phone.text.trim().isEmpty
+          ? 'Enter the guardian’s mobile number for the invitation.'
+          : null;
+      _emailError =
+          _createAccount &&
+              _invitationChannel == GuardianInvitationChannel.email &&
+              _email.text.trim().isEmpty
+          ? 'Enter the guardian’s email address for the invitation.'
+          : null;
+      _authorizationError = !_authorizationConfirmed
+          ? 'Confirm the guardian’s identity and authority.'
+          : null;
+    });
+    if (!formIsValid || firstMissingField != null) {
+      if (firstMissingField != null) {
+        await _scrollToField(firstMissingField);
+      }
       return;
     }
     final children = _childrenForSubmission();
@@ -248,6 +304,11 @@ class _GuardianPatientRegistrationScreenState
     if (_childFirstName.text.trim().isEmpty ||
         _childLastName.text.trim().isEmpty ||
         _birthDate == null) {
+      if (_birthDate == null) {
+        setState(() {
+          _birthDateError = 'Select the child’s birth date.';
+        });
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Complete the current child first.')),
       );
@@ -267,6 +328,7 @@ class _GuardianPatientRegistrationScreenState
       _childLastName.clear();
       _childSuffix.clear();
       _birthDate = null;
+      _birthDateError = null;
       _sex = 'Female';
       _relationship = GuardianRelationshipOptions.defaultForSex(_guardianSex);
     });
@@ -432,345 +494,398 @@ class _GuardianPatientRegistrationScreenState
       body: SafeArea(
         child: Form(
           key: _formKey,
-          child: ListView(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
-            children: [
-              const _IntroCard(),
-              const SizedBox(height: 18),
-              const _SectionTitle(
-                icon: Icons.person_outline_rounded,
-                title: 'Guardian Information',
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _guardianFirstName,
-                      decoration: const InputDecoration(
-                        labelText: 'First name',
-                      ),
-                      textCapitalization: TextCapitalization.words,
-                      validator: _required,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _guardianLastName,
-                      decoration: const InputDecoration(labelText: 'Last name'),
-                      textCapitalization: TextCapitalization.words,
-                      validator: _required,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _guardianMiddleName,
-                      decoration: const InputDecoration(
-                        labelText: 'Middle name or initial (optional)',
-                      ),
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 105,
-                    child: TextFormField(
-                      controller: _guardianSuffix,
-                      decoration: const InputDecoration(
-                        labelText: 'Suffix',
-                        hintText: 'Jr.',
-                      ),
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: _selectGuardianBirthDate,
-                borderRadius: BorderRadius.circular(12),
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Guardian birth date',
-                    suffixIcon: Icon(Icons.calendar_month_rounded),
-                  ),
-                  child: Text(
-                    _guardianBirthDate == null
-                        ? 'Select date'
-                        : _date(_guardianBirthDate!),
-                  ),
+            child: Column(
+              children: [
+                const _IntroCard(),
+                const SizedBox(height: 18),
+                const _SectionTitle(
+                  icon: Icons.person_outline_rounded,
+                  title: 'Guardian Information',
                 ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _guardianSex,
-                decoration: const InputDecoration(labelText: 'Guardian sex'),
-                items: GuardianRelationshipOptions.sexes
-                    .map(
-                      (value) =>
-                          DropdownMenuItem(value: value, child: Text(value)),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() {
-                  _guardianSex = value!;
-                  _relationship = GuardianRelationshipOptions.defaultForSex(
-                    value,
-                  );
-                }),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _phone,
-                decoration: const InputDecoration(
-                  labelText: 'Mobile number (optional)',
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _email,
-                decoration: const InputDecoration(
-                  labelText: 'Email address (optional)',
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _address,
-                decoration: const InputDecoration(labelText: 'Home address'),
-                textCapitalization: TextCapitalization.words,
-                validator: _required,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Guardian record access',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 6),
-              RadioGroup<bool>(
-                groupValue: _createAccount,
-                onChanged: (value) =>
-                    setState(() => _createAccount = value ?? false),
-                child: Column(
+                const SizedBox(height: 12),
+                Row(
                   children: [
-                    RadioListTile<bool>(
-                      contentPadding: EdgeInsets.zero,
-                      value: true,
-                      title: const Text('Online guardian account'),
-                      subtitle: const Text(
-                        'Send an activation invitation. The guardian creates their own password.',
-                      ),
-                    ),
-                    RadioListTile<bool>(
-                      contentPadding: EdgeInsets.zero,
-                      value: false,
-                      title: const Text('Health-worker-managed record'),
-                      subtitle: const Text(
-                        'No login is required. Online access can be requested later.',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (_createAccount) ...[
-                const SizedBox(height: 10),
-                DropdownButtonFormField<GuardianInvitationChannel>(
-                  initialValue: _invitationChannel,
-                  decoration: const InputDecoration(
-                    labelText: 'Invitation delivery',
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: GuardianInvitationChannel.sms,
-                      child: Text('SMS'),
-                    ),
-                    if (!RepositoryRegistry.instance.environment.isLive)
-                      const DropdownMenuItem(
-                        value: GuardianInvitationChannel.email,
-                        child: Text('Mock email'),
-                      ),
-                    const DropdownMenuItem(
-                      value: GuardianInvitationChannel.printedSlip,
-                      child: Text('Printed activation slip'),
-                    ),
-                  ],
-                  onChanged: (value) =>
-                      setState(() => _invitationChannel = value!),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  RepositoryRegistry.instance.environment.isLive
-                      ? 'SMS sends one activation message to the guardian’s saved mobile number. The code is also shown once so it can be printed if delivery fails.'
-                      : 'SMS and email delivery are simulated. No third-party provider is connected.',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 11.5,
-                  ),
-                ),
-              ],
-              const Divider(height: 32),
-              const _SectionTitle(
-                icon: Icons.child_care_rounded,
-                title: 'Child Information',
-              ),
-              const SizedBox(height: 12),
-              if (_additionalChildren.isNotEmpty) ...[
-                Text(
-                  'Children added (${_additionalChildren.length})',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                ..._additionalChildren.asMap().entries.map(
-                  (entry) => Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.child_care_rounded),
-                      title: Text(entry.value.fullName),
-                      subtitle: Text(
-                        '${_date(entry.value.birthDate)} • ${entry.value.relationship}',
-                      ),
-                      trailing: IconButton(
-                        tooltip: 'Remove child',
-                        onPressed: () => setState(
-                          () => _additionalChildren.removeAt(entry.key),
+                    Expanded(
+                      child: TextFormField(
+                        key: _guardianFirstNameFieldKey,
+                        controller: _guardianFirstName,
+                        decoration: const InputDecoration(
+                          labelText: 'First name',
                         ),
-                        icon: const Icon(Icons.close_rounded),
+                        textCapitalization: TextCapitalization.words,
+                        validator: _required,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _childFirstName,
-                      decoration: const InputDecoration(
-                        labelText: 'First name',
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        key: _guardianLastNameFieldKey,
+                        controller: _guardianLastName,
+                        decoration: const InputDecoration(
+                          labelText: 'Last name',
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                        validator: _required,
                       ),
-                      textCapitalization: TextCapitalization.words,
-                      validator: _required,
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _childLastName,
-                      decoration: const InputDecoration(labelText: 'Last name'),
-                      textCapitalization: TextCapitalization.words,
-                      validator: _required,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _childMiddleName,
-                      decoration: const InputDecoration(
-                        labelText: 'Middle name or initial (optional)',
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _guardianMiddleName,
+                        decoration: const InputDecoration(
+                          labelText: 'Middle name or initial (optional)',
+                        ),
+                        textCapitalization: TextCapitalization.words,
                       ),
-                      textCapitalization: TextCapitalization.words,
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 105,
-                    child: TextFormField(
-                      controller: _childSuffix,
-                      decoration: const InputDecoration(
-                        labelText: 'Suffix',
-                        hintText: 'III',
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 105,
+                      child: TextFormField(
+                        controller: _guardianSuffix,
+                        decoration: const InputDecoration(
+                          labelText: 'Suffix',
+                          hintText: 'Jr.',
+                        ),
+                        textCapitalization: TextCapitalization.words,
                       ),
-                      textCapitalization: TextCapitalization.words,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  key: _guardianBirthDateFieldKey,
+                  onTap: _selectGuardianBirthDate,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Guardian birth date',
+                      suffixIcon: const Icon(Icons.calendar_month_rounded),
+                      errorText: _guardianBirthDateError,
+                    ),
+                    child: Text(
+                      _guardianBirthDate == null
+                          ? 'Select date'
+                          : _date(_guardianBirthDate!),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: _selectBirthDate,
-                borderRadius: BorderRadius.circular(12),
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Birth date',
-                    suffixIcon: Icon(Icons.calendar_month_rounded),
-                  ),
-                  child: Text(
-                    _birthDate == null ? 'Select date' : _date(_birthDate!),
-                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _sex,
-                decoration: const InputDecoration(labelText: 'Sex'),
-                items: const ['Female', 'Male']
-                    .map(
-                      (value) =>
-                          DropdownMenuItem(value: value, child: Text(value)),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => _sex = value!),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                key: ValueKey(_guardianSex),
-                initialValue: _relationship,
-                decoration: const InputDecoration(
-                  labelText: 'Relationship to guardian',
-                ),
-                items: GuardianRelationshipOptions.forSex(_guardianSex)
-                    .map(
-                      (value) =>
-                          DropdownMenuItem(value: value, child: Text(value)),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => _relationship = value!),
-              ),
-              const SizedBox(height: 12),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                value: _authorizationConfirmed,
-                onChanged: (value) =>
-                    setState(() => _authorizationConfirmed = value ?? false),
-                title: const Text('Guardian identity and authority confirmed'),
-                subtitle: const Text(
-                  'Required before linking this child record.',
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: _saving ? null : _addAnotherChild,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add This Child & Enter Another'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                ),
-              ),
-              const SizedBox(height: 18),
-              FilledButton.icon(
-                onPressed: _saving ? null : _review,
-                icon: _saving
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _guardianSex,
+                  decoration: const InputDecoration(labelText: 'Guardian sex'),
+                  items: GuardianRelationshipOptions.sexes
+                      .map(
+                        (value) =>
+                            DropdownMenuItem(value: value, child: Text(value)),
                       )
-                    : const Icon(Icons.fact_check_outlined),
-                label: Text(_saving ? 'Saving...' : 'Review Registration'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
+                      .toList(),
+                  onChanged: (value) => setState(() {
+                    _guardianSex = value!;
+                    _relationship = GuardianRelationshipOptions.defaultForSex(
+                      value,
+                    );
+                  }),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: _phoneFieldKey,
+                  controller: _phone,
+                  decoration: InputDecoration(
+                    labelText:
+                        _createAccount &&
+                            _invitationChannel == GuardianInvitationChannel.sms
+                        ? 'Mobile number'
+                        : 'Mobile number (optional)',
+                    errorText: _phoneError,
+                  ),
+                  keyboardType: TextInputType.phone,
+                  onChanged: (_) {
+                    if (_phoneError != null) {
+                      setState(() => _phoneError = null);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: _emailFieldKey,
+                  controller: _email,
+                  decoration: InputDecoration(
+                    labelText:
+                        _createAccount &&
+                            _invitationChannel ==
+                                GuardianInvitationChannel.email
+                        ? 'Email address'
+                        : 'Email address (optional)',
+                    errorText: _emailError,
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  onChanged: (_) {
+                    if (_emailError != null) {
+                      setState(() => _emailError = null);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: _addressFieldKey,
+                  controller: _address,
+                  decoration: const InputDecoration(labelText: 'Home address'),
+                  textCapitalization: TextCapitalization.words,
+                  validator: _required,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Guardian record access',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                RadioGroup<bool>(
+                  groupValue: _createAccount,
+                  onChanged: (value) => setState(() {
+                    _createAccount = value ?? false;
+                    _phoneError = null;
+                    _emailError = null;
+                  }),
+                  child: Column(
+                    children: [
+                      RadioListTile<bool>(
+                        contentPadding: EdgeInsets.zero,
+                        value: true,
+                        title: const Text('Online guardian account'),
+                        subtitle: const Text(
+                          'Send an activation invitation. The guardian creates their own password.',
+                        ),
+                      ),
+                      RadioListTile<bool>(
+                        contentPadding: EdgeInsets.zero,
+                        value: false,
+                        title: const Text('Health-worker-managed record'),
+                        subtitle: const Text(
+                          'No login is required. Online access can be requested later.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_createAccount) ...[
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<GuardianInvitationChannel>(
+                    initialValue: _invitationChannel,
+                    decoration: const InputDecoration(
+                      labelText: 'Invitation delivery',
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: GuardianInvitationChannel.sms,
+                        child: Text('SMS'),
+                      ),
+                      if (!RepositoryRegistry.instance.environment.isLive)
+                        const DropdownMenuItem(
+                          value: GuardianInvitationChannel.email,
+                          child: Text('Mock email'),
+                        ),
+                      const DropdownMenuItem(
+                        value: GuardianInvitationChannel.printedSlip,
+                        child: Text('Printed activation slip'),
+                      ),
+                    ],
+                    onChanged: (value) => setState(() {
+                      _invitationChannel = value!;
+                      _phoneError = null;
+                      _emailError = null;
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    RepositoryRegistry.instance.environment.isLive
+                        ? 'SMS sends one activation message to the guardian’s saved mobile number. The code is also shown once so it can be printed if delivery fails.'
+                        : 'SMS and email delivery are simulated. No third-party provider is connected.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+                const Divider(height: 32),
+                const _SectionTitle(
+                  icon: Icons.child_care_rounded,
+                  title: 'Child Information',
+                ),
+                const SizedBox(height: 12),
+                if (_additionalChildren.isNotEmpty) ...[
+                  Text(
+                    'Children added (${_additionalChildren.length})',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._additionalChildren.asMap().entries.map(
+                    (entry) => Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.child_care_rounded),
+                        title: Text(entry.value.fullName),
+                        subtitle: Text(
+                          '${_date(entry.value.birthDate)} • ${entry.value.relationship}',
+                        ),
+                        trailing: IconButton(
+                          tooltip: 'Remove child',
+                          onPressed: () => setState(
+                            () => _additionalChildren.removeAt(entry.key),
+                          ),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        key: _childFirstNameFieldKey,
+                        controller: _childFirstName,
+                        decoration: const InputDecoration(
+                          labelText: 'First name',
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                        validator: _required,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        key: _childLastNameFieldKey,
+                        controller: _childLastName,
+                        decoration: const InputDecoration(
+                          labelText: 'Last name',
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                        validator: _required,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _childMiddleName,
+                        decoration: const InputDecoration(
+                          labelText: 'Middle name or initial (optional)',
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 105,
+                      child: TextFormField(
+                        controller: _childSuffix,
+                        decoration: const InputDecoration(
+                          labelText: 'Suffix',
+                          hintText: 'III',
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  key: _childBirthDateFieldKey,
+                  onTap: _selectBirthDate,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Birth date',
+                      suffixIcon: const Icon(Icons.calendar_month_rounded),
+                      errorText: _birthDateError,
+                    ),
+                    child: Text(
+                      _birthDate == null ? 'Select date' : _date(_birthDate!),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _sex,
+                  decoration: const InputDecoration(labelText: 'Sex'),
+                  items: const ['Female', 'Male']
+                      .map(
+                        (value) =>
+                            DropdownMenuItem(value: value, child: Text(value)),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _sex = value!),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  key: ValueKey(_guardianSex),
+                  initialValue: _relationship,
+                  decoration: const InputDecoration(
+                    labelText: 'Relationship to guardian',
+                  ),
+                  items: GuardianRelationshipOptions.forSex(_guardianSex)
+                      .map(
+                        (value) =>
+                            DropdownMenuItem(value: value, child: Text(value)),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _relationship = value!),
+                ),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  key: _authorizationFieldKey,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _authorizationConfirmed,
+                  onChanged: (value) => setState(() {
+                    _authorizationConfirmed = value ?? false;
+                    if (_authorizationConfirmed) _authorizationError = null;
+                  }),
+                  title: const Text(
+                    'Guardian identity and authority confirmed',
+                  ),
+                  subtitle: Text(
+                    _authorizationError ??
+                        'Required before linking this child record.',
+                    style: _authorizationError == null
+                        ? null
+                        : TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _saving ? null : _addAnotherChild,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Add This Child & Enter Another'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: _saving ? null : _review,
+                  icon: _saving
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.fact_check_outlined),
+                  label: Text(_saving ? 'Saving...' : 'Review Registration'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

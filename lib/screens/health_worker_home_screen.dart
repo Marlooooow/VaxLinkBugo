@@ -25,6 +25,7 @@ import 'staff_notifications_screen.dart';
 import 'staff_management_screen.dart';
 import 'vaccination_records_screen.dart';
 import 'operational_reports_screen.dart';
+import 'outreach_sessions_screen.dart';
 import '../widgets/app_loading.dart';
 import '../utils/user_facing_error.dart';
 
@@ -269,6 +270,23 @@ class _HealthWorkerHomeScreenState extends State<HealthWorkerHomeScreen> {
                         },
                       ),
                       const SizedBox(height: 10),
+                      _WorkerCard(
+                        icon: Icons.groups_2_outlined,
+                        color: Colors.indigo,
+                        title: 'Outreach Management',
+                        subtitle:
+                            'Plan outreach sessions, monitor released stock, and approve completed reconciliations.',
+                        onTap: () {
+                          _open(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  OutreachSessionsScreen(user: user),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
                     ],
                     _WorkerCard(
                       icon: Icons.person_add_alt_1_rounded,
@@ -404,6 +422,25 @@ class _HealthWorkerHomeScreenState extends State<HealthWorkerHomeScreen> {
                       },
                     ),
                     const SizedBox(height: 10),
+                    if (!user.isAdministrator) ...[
+                      _WorkerCard(
+                        icon: Icons.groups_2_outlined,
+                        color: Colors.indigo,
+                        title: 'Outreach Immunization',
+                        subtitle:
+                            'Plan field sessions, transfer vaccine stock, vaccinate children, and reconcile every dose.',
+                        onTap: () {
+                          _open(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  OutreachSessionsScreen(user: user),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     _WorkerCard(
                       icon: Icons.qr_code_2_rounded,
                       color: primary,

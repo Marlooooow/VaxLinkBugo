@@ -12,18 +12,28 @@ void main() {
         home: LoginScreen(authRepository: MockAuthRepository()),
       ),
     );
-    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.text('Welcome back!'), findsOneWidget);
     await tester.enterText(find.byType(TextField).first, 'invalid');
     await tester.enterText(find.byType(TextField).last, 'invalid');
-    final signIn = find.widgetWithText(ElevatedButton, 'Sign In');
+    final signIn = find.widgetWithText(FilledButton, 'Sign in');
     await tester.ensureVisible(signIn);
     await tester.tap(signIn);
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
     expect(
-      find.text('We could not verify those login details.'),
+      find.text(
+        'We could not verify those login details. '
+        'Please check your Login ID and enter your password again.',
+      ),
       findsOneWidget,
     );
+    var passwordField = tester.widget<TextField>(find.byType(TextField).last);
+    expect(passwordField.controller?.text, isEmpty);
+    expect(passwordField.focusNode?.hasFocus, isTrue);
+
+    await tester.enterText(find.byType(TextField).last, 'replacement');
+    passwordField = tester.widget<TextField>(find.byType(TextField).last);
+    expect(passwordField.controller?.text, 'replacement');
     expect(tester.takeException(), isNull);
   });
 }

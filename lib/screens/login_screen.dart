@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/app_user.dart';
 import '../repositories/auth_repository.dart';
@@ -9,6 +10,7 @@ import '../widgets/app_logo.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_controller.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/app_feedback.dart';
 import 'app_shell.dart';
 import 'change_password_screen.dart';
 import 'guardian_activation_screen.dart';
@@ -32,6 +34,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _allowPasswordAutofill = true;
+  int _passwordFieldRevision = 0;
   String? _errorMessage;
 
   @override
@@ -58,7 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // Basic client-side validation.
     if (username.isEmpty || password.isEmpty) {
       setState(() {
-        _errorMessage = 'Please enter your username and password.';
+        _errorMessage = 'Please enter your Login ID and password.';
       });
       return;
     }
@@ -77,16 +81,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (user == null || !user.active) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage =
-              'We could not verify those login details. '
-              'Please check your username and password.';
-        });
+        _prepareForCredentialRetry();
         return;
       }
 
       if (user.mustChangePassword) {
+        TextInput.finishAutofillContext(shouldSave: false);
         SessionContext.setUser(user);
 
         Navigator.pushReplacement(
@@ -99,6 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       } else {
+        TextInput.finishAutofillContext(shouldSave: true);
         _goToDashboard(user);
       }
     } catch (error) {
@@ -115,6 +116,23 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _prepareForCredentialRetry() {
+    TextInput.finishAutofillContext(shouldSave: false);
+    _passwordController.clear();
+    setState(() {
+      _isLoading = false;
+      _obscurePassword = true;
+      _allowPasswordAutofill = false;
+      _passwordFieldRevision++;
+      _errorMessage =
+          'We could not verify those login details. '
+          'Please check your Login ID and enter your password again.';
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _passwordFocusNode.requestFocus();
+    });
   }
 
   // ================================================================
@@ -359,27 +377,20 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(
-            'Guardian ID verified. Your password-reset request '
-            'was sent to the health worker.',
-          ),
-        ),
+      AppFeedback.success(
+        context,
+        title: 'Request sent',
+        message:
+            'Guardian ID verified. Your password-reset request was sent to the health worker.',
       );
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(
-            UserFacingError.message(
-              error,
-              fallback: 'The reset request could not be sent.',
-            ),
-          ),
+      AppFeedback.failure(
+        context,
+        message: UserFacingError.message(
+          error,
+          fallback: 'The reset request could not be sent.',
         ),
       );
     }
@@ -420,298 +431,308 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 430),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // ==================================================
-                        // BRAND
-                        // ==================================================
-                        const Center(child: AppLogo(size: 72)),
+                    child: AutofillGroup(
+                      onDisposeAction: AutofillContextAction.cancel,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // ==================================================
+                          // BRAND
+                          // ==================================================
+                          const Center(child: AppLogo(size: 72)),
 
-                        const SizedBox(height: 32),
+                          const SizedBox(height: 32),
 
-                        // ==================================================
-                        // WELCOME
-                        // ==================================================
-                        Text(
-                          'Welcome back!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 28,
-                            height: 1.15,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.7,
-                            color: colors.onSurface,
+                          // ==================================================
+                          // WELCOME
+                          // ==================================================
+                          Text(
+                            'Welcome back!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 28,
+                              height: 1.15,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.7,
+                              color: colors.onSurface,
+                            ),
                           ),
-                        ),
 
-                        const SizedBox(height: 15),
+                          const SizedBox(height: 15),
 
-                        // ==================================================
-                        // USERNAME
-                        // ==================================================
-                        const _FieldLabel(
-                          label: 'Username',
-                          icon: Icons.person_outline_rounded,
-                        ),
-
-                        const SizedBox(height: 8),
-
-                        TextField(
-                          controller: _usernameController,
-                          focusNode: _usernameFocusNode,
-                          enabled: !_isLoading,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          textInputAction: TextInputAction.next,
-                          onSubmitted: (_) {
-                            _passwordFocusNode.requestFocus();
-                          },
-                          decoration: const InputDecoration(
-                            hintText: 'Enter your username',
-                            prefixIcon: Icon(Icons.person_outline_rounded),
+                          // ==================================================
+                          // USERNAME
+                          // ==================================================
+                          const _FieldLabel(
+                            label: 'Login ID',
+                            icon: Icons.person_outline_rounded,
                           ),
-                        ),
 
-                        const SizedBox(height: 18),
+                          const SizedBox(height: 8),
 
-                        // ==================================================
-                        // PASSWORD
-                        // ==================================================
-                        const _FieldLabel(
-                          label: 'Password',
-                          icon: Icons.lock_outline_rounded,
-                        ),
+                          TextField(
+                            controller: _usernameController,
+                            focusNode: _usernameFocusNode,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            autofillHints: const [AutofillHints.username],
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: (_) {
+                              _passwordFocusNode.requestFocus();
+                            },
+                            decoration: const InputDecoration(
+                              hintText: 'Enter your Guardian ID or Staff ID',
+                              prefixIcon: Icon(Icons.person_outline_rounded),
+                            ),
+                          ),
 
-                        const SizedBox(height: 8),
+                          const SizedBox(height: 18),
 
-                        TextField(
-                          controller: _passwordController,
-                          focusNode: _passwordFocusNode,
-                          enabled: !_isLoading,
-                          obscureText: _obscurePassword,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) {
-                            if (!_isLoading) {
-                              _login();
-                            }
-                          },
-                          decoration: InputDecoration(
-                            hintText: 'Enter your password',
-                            prefixIcon: const Icon(Icons.lock_outline_rounded),
-                            suffixIcon: IconButton(
-                              tooltip: _obscurePassword
-                                  ? 'Show password'
-                                  : 'Hide password',
-                              onPressed: _isLoading
-                                  ? null
-                                  : () {
-                                      setState(() {
-                                        _obscurePassword = !_obscurePassword;
-                                      });
-                                    },
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
+                          // ==================================================
+                          // PASSWORD
+                          // ==================================================
+                          const _FieldLabel(
+                            label: 'Password',
+                            icon: Icons.lock_outline_rounded,
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          TextField(
+                            key: ValueKey(_passwordFieldRevision),
+                            controller: _passwordController,
+                            focusNode: _passwordFocusNode,
+                            obscureText: _obscurePassword,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            autofillHints: _allowPasswordAutofill
+                                ? const [AutofillHints.password]
+                                : const <String>[],
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) {
+                              if (!_isLoading) {
+                                _login();
+                              }
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Enter your password',
+                              prefixIcon: const Icon(
+                                Icons.lock_outline_rounded,
+                              ),
+                              suffixIcon: IconButton(
+                                tooltip: _obscurePassword
+                                    ? 'Show password'
+                                    : 'Hide password',
+                                onPressed: _isLoading
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        });
+                                      },
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                ),
                               ),
                             ),
                           ),
-                        ),
 
-                        // ==================================================
-                        // FORGOT PASSWORD
-                        // ==================================================
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: _isLoading ? null : _forgotPassword,
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 8,
+                          // ==================================================
+                          // FORGOT PASSWORD
+                          // ==================================================
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _isLoading ? null : _forgotPassword,
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 8,
+                                ),
+                                minimumSize: const Size(48, 40),
                               ),
-                              minimumSize: const Size(48, 40),
-                            ),
-                            child: const Text('Forgot password?'),
-                          ),
-                        ),
-
-                        // ==================================================
-                        // ERROR
-                        // ==================================================
-                        if (_errorMessage != null) ...[
-                          const SizedBox(height: 2),
-                          _LoginError(message: _errorMessage!),
-                        ],
-
-                        const SizedBox(height: 14),
-
-                        // ==================================================
-                        // SIGN IN BUTTON
-                        // ==================================================
-                        SizedBox(
-                          height: 54,
-                          child: FilledButton(
-                            onPressed: _isLoading ? null : _login,
-                            child: Text(
-                              _isLoading ? 'Signing in…' : 'Sign in',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              child: const Text('Forgot password?'),
                             ),
                           ),
-                        ),
 
-                        const SizedBox(height: 24),
-
-                        // ==================================================
-                        // ACCESS
-                        // ==================================================
-                        Text(
-                          'Need online access?',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-
-                        const SizedBox(height: 2),
-
-                        Center(
-                          child: TextButton.icon(
-                            onPressed: _isLoading ? null : _showAccessOptions,
-                            icon: const Icon(
-                              Icons.person_add_alt_1_rounded,
-                              size: 18,
-                            ),
-                            label: const Text('Activate account'),
-                          ),
-                        ),
-
-                        // ==================================================
-                        // DEMO SECTION
-                        // ==================================================
-                        if (widget.authRepository is DemoRepository) ...[
-                          const SizedBox(height: 20),
-
-                          const _SectionDivider(label: 'Prototype Demo'),
+                          // ==================================================
+                          // ERROR
+                          // ==================================================
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 2),
+                            _LoginError(message: _errorMessage!),
+                          ],
 
                           const SizedBox(height: 14),
 
-                          Text(
-                            'Tap an account to automatically fill in the login details.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: colors.onSurfaceVariant,
-                              fontSize: 12.5,
-                              height: 1.4,
+                          // ==================================================
+                          // SIGN IN BUTTON
+                          // ==================================================
+                          SizedBox(
+                            height: 54,
+                            child: FilledButton(
+                              onPressed: _isLoading ? null : _login,
+                              child: Text(
+                                _isLoading ? 'Signing in…' : 'Sign in',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           ),
 
-                          const SizedBox(height: 13),
+                          const SizedBox(height: 24),
 
-                          _DemoAccountButton(
-                            icon: Icons.family_restroom_rounded,
-                            name: 'Maria Santos',
-                            role: 'Guardian',
-                            username: 'guardian',
-                            password: 'guardian123',
-                            onTap: () {
-                              if (!_isLoading) {
-                                _fillDemo(
-                                  username: 'guardian',
-                                  password: 'guardian123',
-                                );
-                              }
-                            },
+                          // ==================================================
+                          // ACCESS
+                          // ==================================================
+                          Text(
+                            'Need online access?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: colors.onSurfaceVariant,
+                            ),
                           ),
 
-                          const SizedBox(height: 9),
+                          const SizedBox(height: 2),
 
-                          _DemoAccountButton(
-                            icon: Icons.family_restroom_rounded,
-                            name: 'Paolo Mendoza',
-                            role: 'Guardian',
-                            username: 'paolo.guardian',
-                            password: 'guardian123',
-                            onTap: () {
-                              if (!_isLoading) {
-                                _fillDemo(
-                                  username: 'paolo.guardian',
-                                  password: 'guardian123',
-                                );
-                              }
-                            },
+                          Center(
+                            child: TextButton.icon(
+                              onPressed: _isLoading ? null : _showAccessOptions,
+                              icon: const Icon(
+                                Icons.person_add_alt_1_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Activate account'),
+                            ),
                           ),
 
-                          const SizedBox(height: 9),
+                          // ==================================================
+                          // DEMO SECTION
+                          // ==================================================
+                          if (widget.authRepository is DemoRepository) ...[
+                            const SizedBox(height: 20),
 
-                          _DemoAccountButton(
-                            icon: Icons.family_restroom_rounded,
-                            name: 'Grace Villanueva',
-                            role: 'Guardian',
-                            username: 'grace.guardian',
-                            password: 'guardian123',
-                            onTap: () {
-                              if (!_isLoading) {
-                                _fillDemo(
-                                  username: 'grace.guardian',
-                                  password: 'guardian123',
-                                );
-                              }
-                            },
-                          ),
+                            const _SectionDivider(label: 'Prototype Demo'),
 
-                          const SizedBox(height: 9),
+                            const SizedBox(height: 14),
 
-                          _DemoAccountButton(
-                            icon: Icons.admin_panel_settings_outlined,
-                            name: 'Barangay Health Administrator',
-                            role: 'Administrator',
-                            username: 'admin',
-                            password: 'admin123',
-                            onTap: () {
-                              if (!_isLoading) {
-                                _fillDemo(
-                                  username: 'admin',
-                                  password: 'admin123',
-                                );
-                              }
-                            },
-                          ),
+                            Text(
+                              'Tap an account to automatically fill in the login details.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: colors.onSurfaceVariant,
+                                fontSize: 12.5,
+                                height: 1.4,
+                              ),
+                            ),
 
-                          const SizedBox(height: 9),
+                            const SizedBox(height: 13),
 
-                          _DemoAccountButton(
-                            icon: Icons.medical_services_outlined,
-                            name: 'Nurse Maria Reyes',
-                            role: 'Health Worker',
-                            username: 'healthworker',
-                            password: 'health123',
-                            onTap: () {
-                              if (!_isLoading) {
-                                _fillDemo(
-                                  username: 'healthworker',
-                                  password: 'health123',
-                                );
-                              }
-                            },
+                            _DemoAccountButton(
+                              icon: Icons.family_restroom_rounded,
+                              name: 'Maria Santos',
+                              role: 'Guardian',
+                              username: 'guardian',
+                              password: 'guardian123',
+                              onTap: () {
+                                if (!_isLoading) {
+                                  _fillDemo(
+                                    username: 'guardian',
+                                    password: 'guardian123',
+                                  );
+                                }
+                              },
+                            ),
+
+                            const SizedBox(height: 9),
+
+                            _DemoAccountButton(
+                              icon: Icons.family_restroom_rounded,
+                              name: 'Paolo Mendoza',
+                              role: 'Guardian',
+                              username: 'paolo.guardian',
+                              password: 'guardian123',
+                              onTap: () {
+                                if (!_isLoading) {
+                                  _fillDemo(
+                                    username: 'paolo.guardian',
+                                    password: 'guardian123',
+                                  );
+                                }
+                              },
+                            ),
+
+                            const SizedBox(height: 9),
+
+                            _DemoAccountButton(
+                              icon: Icons.family_restroom_rounded,
+                              name: 'Grace Villanueva',
+                              role: 'Guardian',
+                              username: 'grace.guardian',
+                              password: 'guardian123',
+                              onTap: () {
+                                if (!_isLoading) {
+                                  _fillDemo(
+                                    username: 'grace.guardian',
+                                    password: 'guardian123',
+                                  );
+                                }
+                              },
+                            ),
+
+                            const SizedBox(height: 9),
+
+                            _DemoAccountButton(
+                              icon: Icons.admin_panel_settings_outlined,
+                              name: 'Barangay Health Administrator',
+                              role: 'Administrator',
+                              username: 'admin',
+                              password: 'admin123',
+                              onTap: () {
+                                if (!_isLoading) {
+                                  _fillDemo(
+                                    username: 'admin',
+                                    password: 'admin123',
+                                  );
+                                }
+                              },
+                            ),
+
+                            const SizedBox(height: 9),
+
+                            _DemoAccountButton(
+                              icon: Icons.medical_services_outlined,
+                              name: 'Nurse Maria Reyes',
+                              role: 'Health Worker',
+                              username: 'healthworker',
+                              password: 'health123',
+                              onTap: () {
+                                if (!_isLoading) {
+                                  _fillDemo(
+                                    username: 'healthworker',
+                                    password: 'health123',
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+
+                          // ==================================================
+                          // SECURITY MESSAGE
+                          // ==================================================
+                          const SizedBox(height: 26),
+
+                          _SecurityMessage(
+                            text: widget.authRepository is DemoRepository
+                                ? 'Prototype authentication is simulated'
+                                : 'Your account is protected and accessible only to authorized users.',
                           ),
                         ],
-
-                        // ==================================================
-                        // SECURITY MESSAGE
-                        // ==================================================
-                        const SizedBox(height: 26),
-
-                        _SecurityMessage(
-                          text: widget.authRepository is DemoRepository
-                              ? 'Prototype authentication is simulated'
-                              : 'Your account is protected and accessible only to authorized users.',
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),

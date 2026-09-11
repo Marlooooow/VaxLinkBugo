@@ -7,6 +7,7 @@ import '../repositories/profile_repository.dart';
 import '../repositories/repository_registry.dart';
 import '../utils/user_facing_error.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/app_feedback.dart';
 import 'change_password_screen.dart';
 
 class AccountProfileScreen extends StatefulWidget {
@@ -51,20 +52,17 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
         },
       );
       if (!mounted) return;
-      setState(() => _profile = Future.value(updated!));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Contact information updated.')),
-      );
+      setState(() {
+        _profile = Future.value(updated!);
+      });
+      AppFeedback.success(context, message: 'Contact information updated.');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserFacingError.message(
-              error,
-              fallback: 'Contact information could not be updated.',
-            ),
-          ),
+      AppFeedback.failure(
+        context,
+        message: UserFacingError.message(
+          error,
+          fallback: 'Contact information could not be updated.',
         ),
       );
     }
@@ -82,9 +80,7 @@ class _AccountProfileScreenState extends State<AccountProfileScreen> {
       ),
     );
     if (changed == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password changed successfully.')),
-      );
+      AppFeedback.success(context, message: 'Password changed successfully.');
     }
   }
 

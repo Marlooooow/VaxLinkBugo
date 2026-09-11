@@ -18,6 +18,7 @@ import '../repositories/appointment_repository.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/repository_registry.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/worker_app_bar_actions.dart';
 import '../widgets/guardian_app_bar_actions.dart';
 import 'child_profile_screen.dart';
@@ -61,12 +62,15 @@ class _VaccinationRemindersScreenState
       RepositoryRegistry.instance.appointmentRepository;
   late Future<List<VaccinationReminder>> _reminders;
   Future<ReminderSummary>? _facilitySummary;
+  Future<ReminderSummary>? _guardianSummary;
   Future<List<AppointmentSlotOffer>>? _slotOffers;
   VaccinationReminderStatus? _filter;
   final Set<String> _selectedIds = {};
   bool _batchSaving = false;
   final Set<String> _locallyReadIds = {};
-  int _guardianVisibleChildLimit = 10;
+  int _guardianOffset = 0;
+  bool _hasMoreGuardianReminders = false;
+  bool _loadingMoreGuardianReminders = false;
   int _facilityOffset = 0;
   bool _hasMoreFacilityReminders = false;
   bool _loadingMoreFacilityReminders = false;
@@ -83,34 +87,108 @@ class _VaccinationRemindersScreenState
   void _reload() {
     final guardianId = widget.guardianId;
     if (!widget.healthWorkerMode && guardianId != null) {
-      _guardianVisibleChildLimit = 10;
-      _reminders = () async {
-        await _repository.syncGuardianReminders(guardianId);
-        return _repository.getGuardianReminders(guardianId);
-      }();
-      _slotOffers = _appointmentRepository.getGuardianSlotOffers(guardianId);
+      _guardianOffset = 0;
+      _hasMoreGuardianReminders = false;
+      _reminders = _loadInitialGuardianPage(guardianId);
+      _guardianSummary = _repository.getGuardianReminderSummary(
+        guardianId,
+        childId: widget.childId,
+      );
+      _slotOffers = _appointmentRepository
+          .getGuardianSlotOffersPage(
+            guardianId,
+            status: AppointmentSlotOfferStatus.pending,
+            limit: 10,
+          )
+          .then((page) => page.items);
       return;
     }
     _facilityOffset = 0;
     _reminders = _loadInitialFacilityPage();
     _facilitySummary = _repository.getFacilityFollowUpSummary();
     if (!widget.healthWorkerMode) {
-      _slotOffers = _appointmentRepository.getGuardianSlotOffers(
-        widget.guardianId!,
-      );
+      _slotOffers = _appointmentRepository
+          .getGuardianSlotOffersPage(
+            widget.guardianId!,
+            status: AppointmentSlotOfferStatus.pending,
+            limit: 10,
+          )
+          .then((page) => page.items);
     }
   }
 
   void _setFilter(VaccinationReminderStatus? status) {
     setState(() {
       _filter = status;
-      _guardianVisibleChildLimit = 10;
       _selectedIds.clear();
+      if (widget.healthWorkerMode) {
+        _facilityOffset = 0;
+        _hasMoreFacilityReminders = false;
+        _reminders = _loadInitialFacilityPage();
+      } else {
+        _guardianOffset = 0;
+        _hasMoreGuardianReminders = false;
+        _reminders = _loadInitialGuardianPage(widget.guardianId!);
+      }
     });
   }
 
+  Future<List<VaccinationReminder>> _loadInitialGuardianPage(
+    String guardianId,
+  ) async {
+    final page = await _repository.getGuardianRemindersPage(
+      guardianId,
+      status: _filter,
+      childId: widget.childId,
+    );
+    _guardianOffset = page.nextOffset;
+    _hasMoreGuardianReminders = page.hasMore;
+    return page.items;
+  }
+
+  Future<void> _loadMoreGuardianReminders() async {
+    if (widget.healthWorkerMode ||
+        !_hasMoreGuardianReminders ||
+        _loadingMoreGuardianReminders) {
+      return;
+    }
+    setState(() => _loadingMoreGuardianReminders = true);
+    try {
+      final current = await _reminders;
+      final page = await _repository.getGuardianRemindersPage(
+        widget.guardianId!,
+        status: _filter,
+        childId: widget.childId,
+        offset: _guardianOffset,
+      );
+      if (!mounted) return;
+      final ids = current.map((item) => item.id).toSet();
+      final combined = [
+        ...current,
+        ...page.items.where((item) => ids.add(item.id)),
+      ];
+      setState(() {
+        _reminders = Future.value(combined);
+        _guardianOffset = page.nextOffset;
+        _hasMoreGuardianReminders = page.hasMore;
+      });
+    } catch (error) {
+      if (mounted) {
+        AppFeedback.failure(
+          context,
+          message: UserFacingError.message(
+            error,
+            fallback: 'More reminders could not be loaded.',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMoreGuardianReminders = false);
+    }
+  }
+
   Future<List<VaccinationReminder>> _loadInitialFacilityPage() async {
-    final page = await _repository.getFacilityFollowUpsPage();
+    final page = await _repository.getFacilityFollowUpsPage(status: _filter);
     _facilityOffset = page.nextOffset;
     _hasMoreFacilityReminders = page.hasMore;
     return page.items;
@@ -126,6 +204,7 @@ class _VaccinationRemindersScreenState
     try {
       final current = await _reminders;
       final page = await _repository.getFacilityFollowUpsPage(
+        status: _filter,
         offset: _facilityOffset,
       );
       if (!mounted) return;
@@ -587,15 +666,12 @@ class _VaccinationRemindersScreenState
       await _performBatchAction(choice);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserFacingError.message(
-              error,
-              fallback:
-                  'The action could not be confirmed. Check follow-up history before trying again.',
-            ),
-          ),
+      AppFeedback.failure(
+        context,
+        message: UserFacingError.message(
+          error,
+          fallback:
+              'The action could not be confirmed. Check follow-up history before trying again.',
         ),
       );
     } finally {
@@ -614,8 +690,9 @@ class _VaccinationRemindersScreenState
       ),
     );
     if (result != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Appointment or waitlist entry saved.')),
+      AppFeedback.success(
+        context,
+        message: 'Appointment or waitlist entry saved.',
       );
     }
   }
@@ -653,24 +730,17 @@ class _VaccinationRemindersScreenState
             .where(
               (item) =>
                   (widget.childId == null || item.childId == widget.childId) &&
-                  _isInActionableReminderWindow(item),
+                  item.isInActionableWindow,
             )
             .toList();
         final visible = _filter == null
             ? reminders
             : reminders.where((item) => item.status == _filter).toList();
         final visibleGroups = _groupRemindersByChild(visible);
-        final displayedGroups = widget.healthWorkerMode
-            ? visibleGroups
-            : visibleGroups
-                  .take(_guardianVisibleChildLimit)
-                  .toList(growable: false);
+        final displayedGroups = visibleGroups;
         final displayed = displayedGroups
             .expand((group) => group.reminders)
             .toList(growable: false);
-        final hasMoreGuardianReminders =
-            !widget.healthWorkerMode &&
-            displayedGroups.length < visibleGroups.length;
         return Column(
           children: [
             if (widget.healthWorkerMode &&
@@ -737,10 +807,31 @@ class _VaccinationRemindersScreenState
                         },
                       )
                     else
-                      _Summary(
-                        summary: ReminderSummary.fromItems(reminders),
-                        selectedStatus: _filter,
-                        onSelected: _setFilter,
+                      FutureBuilder<ReminderSummary>(
+                        future: _guardianSummary,
+                        builder: (context, summarySnapshot) {
+                          if (summarySnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const LinearProgressIndicator();
+                          }
+                          if (summarySnapshot.hasError ||
+                              !summarySnapshot.hasData) {
+                            return _SummaryUnavailable(
+                              onRetry: () => setState(() {
+                                _guardianSummary = _repository
+                                    .getGuardianReminderSummary(
+                                      widget.guardianId!,
+                                      childId: widget.childId,
+                                    );
+                              }),
+                            );
+                          }
+                          return _Summary(
+                            summary: summarySnapshot.data!,
+                            selectedStatus: _filter,
+                            onSelected: _setFilter,
+                          );
+                        },
                       ),
                     const SizedBox(height: 14),
                     SingleChildScrollView(
@@ -890,20 +981,32 @@ class _VaccinationRemindersScreenState
                           ),
                         ),
                       ),
-                    if (!widget.healthWorkerMode && hasMoreGuardianReminders)
+                    if (!widget.healthWorkerMode && _hasMoreGuardianReminders)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: OutlinedButton.icon(
-                          onPressed: () =>
-                              setState(() => _guardianVisibleChildLimit += 10),
-                          icon: const Icon(Icons.expand_more_rounded),
-                          label: const Text('Load 10 more'),
+                          onPressed: _loadingMoreGuardianReminders
+                              ? null
+                              : _loadMoreGuardianReminders,
+                          icon: _loadingMoreGuardianReminders
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.expand_more_rounded),
+                          label: Text(
+                            _loadingMoreGuardianReminders
+                                ? 'Loading…'
+                                : 'Load 10 more children',
+                          ),
                         ),
                       ),
                     if (((widget.healthWorkerMode &&
                                 !_hasMoreFacilityReminders) ||
                             (!widget.healthWorkerMode &&
-                                !hasMoreGuardianReminders)) &&
+                                !_hasMoreGuardianReminders)) &&
                         displayed.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
@@ -935,13 +1038,12 @@ class _VaccinationRemindersScreenState
   );
 
   List<VaccinationReminderStatus> _availableFilters(
-    List<VaccinationReminder> reminders,
-  ) => VaccinationReminderStatus.values
-      .where(
-        (status) =>
-            status == _filter || reminders.any((item) => item.status == status),
-      )
-      .toList(growable: false);
+    List<VaccinationReminder> _,
+  ) => const [
+    VaccinationReminderStatus.dueToday,
+    VaccinationReminderStatus.overdue,
+    VaccinationReminderStatus.upcoming,
+  ];
 }
 
 class _ReminderIntro extends StatelessWidget {
@@ -1185,23 +1287,6 @@ List<_ChildReminderGroup> _groupRemindersByChild(
       .toList(growable: false);
 }
 
-bool _isInActionableReminderWindow(VaccinationReminder reminder) {
-  if (reminder.status != VaccinationReminderStatus.overdue &&
-      reminder.status != VaccinationReminderStatus.dueToday &&
-      reminder.status != VaccinationReminderStatus.upcoming) {
-    return false;
-  }
-  final today = DateTime.now();
-  final todayOnly = DateTime(today.year, today.month, today.day);
-  final lastUpcomingDate = todayOnly.add(const Duration(days: 30));
-  final dueDate = DateTime(
-    reminder.dueDate.year,
-    reminder.dueDate.month,
-    reminder.dueDate.day,
-  );
-  return !dueDate.isAfter(lastUpcomingDate);
-}
-
 class _ChildReminderGroupCard extends StatelessWidget {
   final _ChildReminderGroup group;
   final bool selected;
@@ -1421,134 +1506,6 @@ class _GuardianChildReminderGroupCard extends StatelessWidget {
               label: const Text('View vaccination schedule'),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReminderCard extends StatelessWidget {
-  final VaccinationReminder reminder;
-  final bool isRead;
-  final bool healthWorkerMode;
-  final VoidCallback onOpen;
-  final VoidCallback? onViewChild;
-  final bool selected;
-  final ValueChanged<bool>? onSelected;
-  final Future<List<ReminderFollowUpRecord>> Function()? historyLoader;
-  final VoidCallback? onSchedule;
-
-  const _ReminderCard({
-    required this.reminder,
-    required this.isRead,
-    required this.healthWorkerMode,
-    required this.onOpen,
-    this.onViewChild,
-    required this.selected,
-    this.onSelected,
-    this.historyLoader,
-    this.onSchedule,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _statusColor(reminder.status);
-    if (!healthWorkerMode) {
-      return Card(
-        margin: const EdgeInsets.only(bottom: 11),
-        clipBehavior: Clip.antiAlias,
-        child: ListTile(
-          onTap: onViewChild,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
-          ),
-          leading: CircleAvatar(
-            backgroundColor: color.withValues(alpha: 0.10),
-            child: Icon(_statusIcon(reminder.status), color: color),
-          ),
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  reminder.childName,
-                  style: TextStyle(
-                    fontWeight: isRead ? FontWeight.w700 : FontWeight.w900,
-                  ),
-                ),
-              ),
-              if (!isRead) const _NewBadge(),
-            ],
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 5),
-            child: Text(
-              '${reminder.vaccineName} Dose ${reminder.doseNumber}\n'
-              '${_statusLabel(reminder.status)} • ${_date(reminder.dueDate)}',
-            ),
-          ),
-          trailing: const Icon(Icons.chevron_right_rounded),
-        ),
-      );
-    }
-    return Card(
-      margin: const EdgeInsets.only(bottom: 11),
-      clipBehavior: Clip.antiAlias,
-      child: ExpansionTile(
-        key: PageStorageKey<String>('reminder-${reminder.id}'),
-        maintainState: true,
-        onExpansionChanged: (expanded) {
-          if (expanded) onOpen();
-        },
-        leading: Checkbox(
-          value: selected,
-          onChanged: (value) => onSelected?.call(value ?? false),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                reminder.childName,
-                style: TextStyle(
-                  fontWeight: isRead ? FontWeight.w700 : FontWeight.w900,
-                ),
-              ),
-            ),
-            if (!isRead) const _NewBadge(),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            '${reminder.vaccineName} Dose ${reminder.doseNumber}\n'
-            '${_statusLabel(reminder.status)} • ${_date(reminder.dueDate)}',
-          ),
-        ),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        children: [
-          const Divider(),
-          _Detail('Child ID', reminder.childId),
-          _Detail(
-            'Vaccine',
-            '${reminder.vaccineName} Dose ${reminder.doseNumber}',
-          ),
-          _Detail('PNIP due date', _date(reminder.dueDate)),
-          _Detail('Status', _statusLabel(reminder.status)),
-          _Detail('Channel', _channelLabel(reminder.channel)),
-          _Detail('Reminder ID', reminder.reminderCode),
-          if (healthWorkerMode) ...[
-            const SizedBox(height: 10),
-            _FollowUpHistory(loader: historyLoader!),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onSchedule,
-                icon: const Icon(Icons.edit_calendar_outlined),
-                label: const Text('Schedule / Waitlist'),
-              ),
-            ),
-          ],
         ],
       ),
     );

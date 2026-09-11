@@ -14,27 +14,20 @@ class InventoryStockActionResult {
   final InventoryTransaction transaction;
   final int usableQuantityDelta;
   final VaccineInventory? refreshedInventory;
-  final List<VaccineBatch>? refreshedBatches;
-  final List<InventoryTransaction>? refreshedTransactions;
 
   const InventoryStockActionResult({
     required this.transaction,
     required this.usableQuantityDelta,
     this.refreshedInventory,
-    this.refreshedBatches,
-    this.refreshedTransactions,
   });
-
-  bool get hasRefreshedSnapshot =>
-      refreshedInventory != null &&
-      refreshedBatches != null &&
-      refreshedTransactions != null;
 }
 
 class InventoryStockActionScreen extends StatefulWidget {
   final InventoryStockAction action;
   final VaccineInventory inventory;
   final List<VaccineBatch> batches;
+  final bool hasMoreBatches;
+  final int nextBatchOffset;
   final InventoryRepository repository;
 
   const InventoryStockActionScreen({
@@ -42,6 +35,8 @@ class InventoryStockActionScreen extends StatefulWidget {
     required this.action,
     required this.inventory,
     required this.batches,
+    this.hasMoreBatches = false,
+    this.nextBatchOffset = 0,
     required this.repository,
   });
 
@@ -68,8 +63,12 @@ class _InventoryStockActionScreenState
   String? _expiryDateError;
   String? _referenceError;
   bool _saving = false;
+  late final List<VaccineBatch> _batches;
+  late bool _hasMoreBatches;
+  late int _nextBatchOffset;
+  bool _loadingMoreBatches = false;
 
-  List<VaccineBatch> get _selectableBatches => widget.batches
+  List<VaccineBatch> get _selectableBatches => _batches
       .where(
         (batch) =>
             batch.canBeUsed &&
@@ -87,8 +86,34 @@ class _InventoryStockActionScreenState
   @override
   void initState() {
     super.initState();
+    _batches = List.of(widget.batches);
+    _hasMoreBatches = widget.hasMoreBatches;
+    _nextBatchOffset = widget.nextBatchOffset;
     if (_selectableBatches.isNotEmpty) {
       _batchId = _selectableBatches.first.id;
+    }
+  }
+
+  Future<void> _loadMoreBatches() async {
+    if (_loadingMoreBatches || !_hasMoreBatches) return;
+    setState(() => _loadingMoreBatches = true);
+    try {
+      final page = await widget.repository.getBatchesPage(
+        widget.inventory.vaccineId,
+        offset: _nextBatchOffset,
+      );
+      final ids = _batches.map((batch) => batch.id).toSet();
+      _batches.addAll(page.items.where((batch) => ids.add(batch.id)));
+      if (!mounted) return;
+      setState(() {
+        _hasMoreBatches = page.hasMore;
+        _nextBatchOffset = page.nextOffset;
+        _batchId ??= _selectableBatches.firstOrNull?.id;
+      });
+    } catch (_) {
+      if (mounted) _message('More vaccine batches could not be loaded.');
+    } finally {
+      if (mounted) setState(() => _loadingMoreBatches = false);
     }
   }
 
@@ -265,20 +290,14 @@ class _InventoryStockActionScreenState
         InventoryStockAction.wastage => transaction.quantityChange,
       };
 
-      // The write has committed. Read the complete current inventory before
-      // returning so the destination screen never reuses its old snapshot.
+      // The write has committed. Refresh only the small inventory summary here.
+      // The destination screen reloads the first paged batch and transaction
+      // results, avoiding a duplicate download of the complete stock history.
       VaccineInventory? refreshedInventory;
-      List<VaccineBatch>? refreshedBatches;
-      List<InventoryTransaction>? refreshedTransactions;
       try {
-        final refreshed = await Future.wait([
-          widget.repository.getVaccineInventory(widget.inventory.vaccineId),
-          widget.repository.getBatches(widget.inventory.vaccineId),
-          widget.repository.getTransactions(widget.inventory.vaccineId),
-        ]);
-        refreshedInventory = refreshed[0] as VaccineInventory?;
-        refreshedBatches = refreshed[1] as List<VaccineBatch>;
-        refreshedTransactions = refreshed[2] as List<InventoryTransaction>;
+        refreshedInventory = await widget.repository.getVaccineInventory(
+          widget.inventory.vaccineId,
+        );
       } catch (_) {
         // The stock write is already committed. Return it instead of leaving
         // the form open and risking a duplicate submission.
@@ -290,8 +309,6 @@ class _InventoryStockActionScreenState
           transaction: transaction,
           usableQuantityDelta: usableQuantityDelta,
           refreshedInventory: refreshedInventory,
-          refreshedBatches: refreshedBatches,
-          refreshedTransactions: refreshedTransactions,
         ),
       );
     } catch (error) {
@@ -465,6 +482,24 @@ class _InventoryStockActionScreenState
               _quantityError = null;
             }),
           ),
+          if (_hasMoreBatches)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _loadingMoreBatches ? null : _loadMoreBatches,
+                icon: _loadingMoreBatches
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.expand_more_rounded),
+                label: Text(
+                  _loadingMoreBatches
+                      ? 'Loading batches…'
+                      : 'Load more batches',
+                ),
+              ),
+            ),
           const SizedBox(height: 12),
         ],
         if (widget.action == InventoryStockAction.adjust) ...[

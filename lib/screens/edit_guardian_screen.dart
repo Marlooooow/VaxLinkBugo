@@ -152,25 +152,55 @@ class _EditGuardianScreenState extends State<EditGuardianScreen> {
             const SizedBox(height: 14),
             Row(
               children: [
-                Expanded(child: TextFormField(controller: _firstName, decoration: const InputDecoration(labelText: 'First name'), validator: _required)),
+                Expanded(
+                  child: TextFormField(
+                    controller: _firstName,
+                    decoration: const InputDecoration(labelText: 'First name'),
+                    validator: _required,
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: TextFormField(controller: _lastName, decoration: const InputDecoration(labelText: 'Last name'), validator: _required)),
+                Expanded(
+                  child: TextFormField(
+                    controller: _lastName,
+                    decoration: const InputDecoration(labelText: 'Last name'),
+                    validator: _required,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: TextFormField(controller: _middleName, decoration: const InputDecoration(labelText: 'Middle name or initial (optional)'))),
+                Expanded(
+                  child: TextFormField(
+                    controller: _middleName,
+                    decoration: const InputDecoration(
+                      labelText: 'Middle name or initial (optional)',
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 10),
-                SizedBox(width: 105, child: TextFormField(controller: _suffix, decoration: const InputDecoration(labelText: 'Suffix'))),
+                SizedBox(
+                  width: 105,
+                  child: TextFormField(
+                    controller: _suffix,
+                    decoration: const InputDecoration(labelText: 'Suffix'),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             InkWell(
               onTap: _selectBirthDate,
               child: InputDecorator(
-                decoration: const InputDecoration(labelText: 'Guardian birth date', suffixIcon: Icon(Icons.calendar_month_rounded)),
-                child: Text(_birthDate == null ? 'Select date' : _date(_birthDate!)),
+                decoration: const InputDecoration(
+                  labelText: 'Guardian birth date',
+                  suffixIcon: Icon(Icons.calendar_month_rounded),
+                ),
+                child: Text(
+                  _birthDate == null ? 'Select date' : _date(_birthDate!),
+                ),
               ),
             ),
             const SizedBox(height: 12),

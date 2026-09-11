@@ -8,6 +8,7 @@ import '../repositories/repository_registry.dart';
 import '../repositories/staff_repository.dart';
 import '../utils/user_facing_error.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/worker_app_bar_actions.dart';
 
 class StaffManagementScreen extends StatefulWidget {
@@ -221,25 +222,19 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       if (!mounted) return;
       await _loadFirstPage();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            next == StaffAccessStatus.disabled
-                ? 'Staff account disabled.'
-                : 'Staff account reactivated.',
-          ),
-        ),
+      AppFeedback.success(
+        context,
+        message: next == StaffAccessStatus.disabled
+            ? 'Staff account disabled.'
+            : 'Staff account reactivated.',
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserFacingError.message(
-              error,
-              fallback: 'Staff account status could not be updated.',
-            ),
-          ),
+      AppFeedback.failure(
+        context,
+        message: UserFacingError.message(
+          error,
+          fallback: 'Staff account status could not be updated.',
         ),
       );
     }

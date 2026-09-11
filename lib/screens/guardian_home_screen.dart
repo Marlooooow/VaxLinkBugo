@@ -5,7 +5,6 @@ import '../models/app_user.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/repository_registry.dart';
-import '../models/vaccination_reminder.dart';
 import '../services/session_context.dart';
 import '../widgets/bugo_brand_title.dart';
 import '../widgets/guardian_dashboard_children.dart';
@@ -43,7 +42,7 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen>
   AppUser get user => widget.user;
   AuthRepository get authRepository => widget.authRepository;
   late ReminderRepository _reminders;
-  late Future<List<VaccinationReminder>> _reminderRows;
+  late Future<ReminderSummary> _reminderSummary;
   int _revision = 0;
 
   @override
@@ -53,18 +52,19 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen>
     _reminders =
         widget.reminderRepository ??
         RepositoryRegistry.instance.reminderRepository;
-    _reminderRows = Future.value(const <VaccinationReminder>[]);
+    _reminderSummary = Future.value(
+      const ReminderSummary(dueToday: 0, overdue: 0, upcoming: 0),
+    );
     _reloadReminders();
   }
 
   void _reloadReminders() {
     _revision++;
-    _reminderRows = () async {
+    _reminderSummary = () async {
       try {
-        await _reminders.syncGuardianReminders(user.id);
-        return _reminders.getGuardianReminders(user.id);
+        return _reminders.getGuardianReminderSummary(user.id);
       } catch (error) {
-        return Future<List<VaccinationReminder>>.error(error);
+        return Future<ReminderSummary>.error(error);
       }
     }();
   }
@@ -151,16 +151,14 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen>
         title: const BugoBrandTitle(),
         actions: [
           const ThemeModeButton(),
-          FutureBuilder<List<VaccinationReminder>>(
+          FutureBuilder<ReminderSummary>(
             key: ValueKey(user.id),
-            future: _reminderRows,
+            future: _reminderSummary,
             builder: (context, snapshot) {
               final ready =
                   snapshot.connectionState == ConnectionState.done &&
                   !snapshot.hasError;
-              final unread = (snapshot.data ?? <VaccinationReminder>[])
-                  .where((r) => r.hasUnreadNotification)
-                  .length;
+              final unread = snapshot.data?.unread ?? 0;
               return IconButton(
                 tooltip: snapshot.hasError
                     ? 'Reminders unavailable — tap to retry'
@@ -260,8 +258,8 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen>
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 10),
-                FutureBuilder<List<VaccinationReminder>>(
-                  future: _reminderRows,
+                FutureBuilder<ReminderSummary>(
+                  future: _reminderSummary,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState != ConnectionState.done) {
                       return const _GuardianReminderLoadingCard();
@@ -272,17 +270,8 @@ class _GuardianHomeScreenState extends State<GuardianHomeScreen>
                         child: const Text('Retry reminder summary'),
                       );
                     }
-                    final rows = snapshot.data ?? [];
-                    final due = rows
-                        .where(
-                          (r) => r.status == VaccinationReminderStatus.dueToday,
-                        )
-                        .length;
-                    final overdue = rows
-                        .where(
-                          (r) => r.status == VaccinationReminderStatus.overdue,
-                        )
-                        .length;
+                    final due = snapshot.data?.dueToday ?? 0;
+                    final overdue = snapshot.data?.overdue ?? 0;
                     return _FeatureCard(
                       icon: Icons.notifications_active_outlined,
                       iconColor: overdue > 0 ? Colors.red.shade700 : primary,

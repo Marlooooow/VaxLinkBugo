@@ -56,10 +56,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
       await Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => ReferralQrScreen(
-            referrals: referrals,
-            child: widget.child,
-          ),
+          builder: (_) =>
+              ReferralQrScreen(referrals: referrals, child: widget.child),
         ),
       );
     } catch (e) {

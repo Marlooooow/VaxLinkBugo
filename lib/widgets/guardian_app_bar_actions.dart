@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
-import '../models/vaccination_reminder.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/reminder_repository.dart';
 import '../repositories/repository_registry.dart';
@@ -34,7 +33,7 @@ class GuardianAppBarActions extends StatefulWidget {
 
 class _GuardianAppBarActionsState extends State<GuardianAppBarActions> {
   late ReminderRepository _reminders;
-  late Future<List<VaccinationReminder>> _reminderRows;
+  late Future<ReminderSummary> _reminderSummary;
 
   AppUser? get _user => widget.user ?? SessionContext.user;
 
@@ -44,20 +43,25 @@ class _GuardianAppBarActionsState extends State<GuardianAppBarActions> {
     _reminders =
         widget.reminderRepository ??
         RepositoryRegistry.instance.reminderRepository;
-    _reminderRows = widget.showNotifications
-        ? _loadReminders()
-        : Future.value(const <VaccinationReminder>[]);
+    _reminderSummary = widget.showNotifications
+        ? _loadSummary()
+        : Future.value(
+            const ReminderSummary(dueToday: 0, overdue: 0, upcoming: 0),
+          );
   }
 
-  Future<List<VaccinationReminder>> _loadReminders() async {
+  Future<ReminderSummary> _loadSummary() async {
     final user = _user;
-    if (user == null) return const <VaccinationReminder>[];
-    await _reminders.syncGuardianReminders(user.id);
-    return _reminders.getGuardianReminders(user.id);
+    if (user == null) {
+      return const ReminderSummary(dueToday: 0, overdue: 0, upcoming: 0);
+    }
+    return _reminders.getGuardianReminderSummary(user.id);
   }
 
   void _reload() {
-    setState(() => _reminderRows = _loadReminders());
+    setState(() {
+      _reminderSummary = _loadSummary();
+    });
   }
 
   Future<void> _openReminders() async {
@@ -131,15 +135,13 @@ class _GuardianAppBarActionsState extends State<GuardianAppBarActions> {
       children: [
         const ThemeModeButton(),
         if (widget.showNotifications)
-          FutureBuilder<List<VaccinationReminder>>(
-            future: _reminderRows,
+          FutureBuilder<ReminderSummary>(
+            future: _reminderSummary,
             builder: (context, snapshot) {
               final ready =
                   snapshot.connectionState == ConnectionState.done &&
                   !snapshot.hasError;
-              final unread = (snapshot.data ?? const <VaccinationReminder>[])
-                  .where((reminder) => reminder.hasUnreadNotification)
-                  .length;
+              final unread = snapshot.data?.unread ?? 0;
               return IconButton(
                 tooltip: snapshot.hasError
                     ? 'Reminders unavailable — tap to retry'

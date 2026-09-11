@@ -12,6 +12,7 @@ import '../repositories/child_repository.dart';
 import '../repositories/guardian_invitation_repository.dart';
 import '../utils/user_facing_error.dart';
 import '../widgets/guardian_activation_code_dialog.dart';
+import '../widgets/app_feedback.dart';
 import '../theme/status_colors.dart';
 import 'add_child_to_guardian_screen.dart';
 import 'child_profile_screen.dart';
@@ -197,9 +198,7 @@ class _RegisteredFamilyDetailsScreenState
       );
       _lastGuardianCorrection = result.correction;
     });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Guardian correction saved.')));
+    AppFeedback.success(context, message: 'Guardian correction saved.');
     await _refreshLiveFamily();
   }
 
@@ -243,12 +242,9 @@ class _RegisteredFamilyDetailsScreenState
         invitation: family.invitation,
       );
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Child correction saved: ${result.correction.correctionCode}',
-        ),
-      ),
+    AppFeedback.success(
+      context,
+      message: 'Child correction saved: ${result.correction.correctionCode}',
     );
   }
 
@@ -277,7 +273,7 @@ class _RegisteredFamilyDetailsScreenState
     if (confirmed != true || !mounted) return;
     setState(() => _resettingGuardianPassword = true);
     try {
-      final password = await RepositoryRegistry
+      final reset = await RepositoryRegistry
           .instance
           .staffNotificationRepository
           .resetGuardianPasswordForGuardian(guardian.id);
@@ -287,7 +283,7 @@ class _RegisteredFamilyDetailsScreenState
         builder: (dialogContext) => AlertDialog(
           title: const Text('Temporary password generated'),
           content: SelectableText(
-            'Guardian ID / Login ID:\n${guardian.guardianCode}\n\nTemporary password:\n$password\n\nGive these privately to the guardian. They must change the password after signing in.',
+            'Guardian ID / Login ID:\n${reset.loginId}\n\nTemporary password:\n${reset.temporaryPassword}\n\nGive these privately to the guardian. They must change the password after signing in.',
           ),
           actions: [
             FilledButton(
@@ -298,10 +294,15 @@ class _RegisteredFamilyDetailsScreenState
         ),
       );
     } catch (error) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Password reset failed: $error')),
+      if (mounted) {
+        AppFeedback.failure(
+          context,
+          message: UserFacingError.message(
+            error,
+            fallback: 'The guardian password could not be reset.',
+          ),
         );
+      }
     } finally {
       if (mounted) setState(() => _resettingGuardianPassword = false);
     }

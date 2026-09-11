@@ -13,8 +13,15 @@ import 'previous_vaccination_screen.dart';
 
 class VaccinationAssessmentScreen extends StatefulWidget {
   final ChildProfile child;
+  final String? outreachSessionId;
+  final String? outreachTitle;
 
-  const VaccinationAssessmentScreen({super.key, required this.child});
+  const VaccinationAssessmentScreen({
+    super.key,
+    required this.child,
+    this.outreachSessionId,
+    this.outreachTitle,
+  });
 
   @override
   State<VaccinationAssessmentScreen> createState() =>
@@ -81,8 +88,46 @@ class _VaccinationAssessmentScreenState
   // RECORD FIRST VISIT DECISION
   // ---------------------------------------------------------------------------
 
-  Future<void> _recordFirstVisitDecision(bool hasDocuments) async {
+  Future<void> _recordFirstVisitDecision(
+    FirstVisitHistoryStatus historyStatus,
+  ) async {
     if (_reviewLoading) return;
+
+    var notes = '';
+    if (historyStatus == FirstVisitHistoryStatus.unknownHistory) {
+      final controller = TextEditingController();
+      final entered = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Records unavailable or uncertain'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Record retrieval notes',
+              hintText: 'Example: Card was lost; previous clinic contacted.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (controller.text.trim().length < 3) return;
+                Navigator.pop(dialogContext, controller.text.trim());
+              },
+              child: const Text('Save assessment'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (entered == null || !mounted) return;
+      notes = entered;
+    }
 
     setState(() {
       _reviewLoading = true;
@@ -90,7 +135,8 @@ class _VaccinationAssessmentScreenState
 
     final pendingReview = FirstVisitReview.pending(
       childId: widget.child.id,
-      hasDocumentedPreviousVaccinations: hasDocuments,
+      historyStatus: historyStatus,
+      notes: notes,
     );
 
     try {
@@ -120,9 +166,9 @@ class _VaccinationAssessmentScreenState
 
     // If the guardian has documents, open the screen
     // where the previous vaccination records can be encoded.
-    if (!hasDocuments) return;
+    if (historyStatus != FirstVisitHistoryStatus.verifiedRecords) return;
 
-    await Navigator.push(
+    final completed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => PreviousVaccinationScreen(child: widget.child),
@@ -130,6 +176,11 @@ class _VaccinationAssessmentScreenState
     );
 
     if (!mounted) return;
+
+    if (completed == true && widget.outreachSessionId != null) {
+      Navigator.pop(context, true);
+      return;
+    }
 
     setState(() {
       _loadAssessment();
@@ -251,6 +302,8 @@ class _VaccinationAssessmentScreenState
         builder: (_) => InventoryCheckScreen(
           child: widget.child,
           vaccineIds: assessment.recommendedVaccineIds,
+          outreachSessionId: widget.outreachSessionId,
+          outreachTitle: widget.outreachTitle,
         ),
       ),
     );
@@ -370,7 +423,9 @@ class _VaccinationAssessmentScreenState
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE7EDF4)),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
               ),
               child: Row(
                 children: [
@@ -527,7 +582,9 @@ class _VaccinationAssessmentScreenState
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.all(13),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHigh,
                             borderRadius: BorderRadius.circular(13),
                           ),
                           child: Row(
@@ -587,12 +644,14 @@ class _VaccinationAssessmentScreenState
                           ).colorScheme.primary.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          _firstVisitReview!.hasDocumentedPreviousVaccinations
-                              ? 'Documents available — encode each verified dose.'
-                              : 'No documented previous vaccinations confirmed.',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
+                        child: Text(switch (_firstVisitReview!.historyStatus) {
+                          FirstVisitHistoryStatus.verifiedRecords =>
+                            'Verified records available — encode each documented dose.',
+                          FirstVisitHistoryStatus.unknownHistory =>
+                            'Previous records are unavailable or uncertain. Do not create guessed historical doses.',
+                          FirstVisitHistoryStatus.confirmedNone =>
+                            'Guardian confirms the child has not received previous vaccination.',
+                        }, style: const TextStyle(fontWeight: FontWeight.w700)),
                       ),
 
                     // Loading indicator
@@ -613,47 +672,39 @@ class _VaccinationAssessmentScreenState
                       ),
 
                     // Review buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _reviewLoading
-                                ? null
-                                : () => _recordFirstVisitDecision(true),
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor:
-                                  _firstVisitReview
-                                          ?.hasDocumentedPreviousVaccinations ==
-                                      true
-                                  ? Theme.of(context).colorScheme.primary
-                                        .withValues(alpha: 0.10)
-                                  : null,
-                            ),
-                            child: const Text('Yes, Review Records'),
+                    for (final option in const [
+                      (
+                        FirstVisitHistoryStatus.verifiedRecords,
+                        'Verified records available',
+                      ),
+                      (
+                        FirstVisitHistoryStatus.unknownHistory,
+                        'Records unavailable / uncertain',
+                      ),
+                      (
+                        FirstVisitHistoryStatus.confirmedNone,
+                        'Confirmed no previous vaccination',
+                      ),
+                    ]) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _reviewLoading
+                              ? null
+                              : () => _recordFirstVisitDecision(option.$1),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor:
+                                _firstVisitReview?.historyStatus == option.$1
+                                ? Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.10)
+                                : null,
                           ),
+                          child: Text(option.$2),
                         ),
-
-                        const SizedBox(width: 10),
-
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _reviewLoading
-                                ? null
-                                : () => _recordFirstVisitDecision(false),
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor:
-                                  _firstVisitReview
-                                          ?.hasDocumentedPreviousVaccinations ==
-                                      false
-                                  ? Theme.of(context).colorScheme.primary
-                                        .withValues(alpha: 0.10)
-                                  : null,
-                            ),
-                            child: const Text('No Documents'),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                   ],
                 ),
               ),
@@ -741,7 +792,7 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE7EDF4)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -853,7 +904,7 @@ class _VaccinationHistoryItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: Theme.of(context).colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(13),
       ),
       child: Row(

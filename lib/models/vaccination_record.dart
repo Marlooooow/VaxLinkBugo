@@ -1,4 +1,4 @@
-enum VaccinationSource { bugo, externalReferral, previousRecord }
+enum VaccinationSource { bugo, externalReferral, previousRecord, outreach }
 
 class VaccinationRecord {
   final String id;

@@ -9,6 +9,7 @@ import '../repositories/vaccination_repository.dart';
 import '../services/session_context.dart';
 import '../utils/user_facing_error.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/app_feedback.dart';
 
 class PreviousVaccinationScreen extends StatefulWidget {
   final ChildProfile child;
@@ -117,21 +118,19 @@ class _PreviousVaccinationScreenState extends State<PreviousVaccinationScreen> {
         _notes.clear();
         _assessment = _repository.assessChild(widget.child);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Previous vaccination record added.')),
+      AppFeedback.success(
+        context,
+        message: 'Previous vaccination record added.',
       );
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserFacingError.message(
-              error,
-              fallback:
-                  'The previous vaccination record could not be saved. Please try again.',
-            ),
-          ),
+      AppFeedback.failure(
+        context,
+        message: UserFacingError.message(
+          error,
+          fallback:
+              'The previous vaccination record could not be saved. Please try again.',
         ),
       );
     }

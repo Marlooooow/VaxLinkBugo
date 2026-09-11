@@ -24,11 +24,15 @@ class GuardianChildRequestScreen extends StatefulWidget {
 class _GuardianChildRequestScreenState
     extends State<GuardianChildRequestScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _firstNameFieldKey = GlobalKey();
+  final _lastNameFieldKey = GlobalKey();
+  final _birthDateFieldKey = GlobalKey();
   final _firstName = TextEditingController();
   final _middleName = TextEditingController();
   final _lastName = TextEditingController();
   final _suffix = TextEditingController();
   DateTime? _birthDate;
+  String? _birthDateError;
   String _sex = 'Female';
   String _guardianSex = 'Female';
   String _relationship = 'Mother';
@@ -69,15 +73,40 @@ class _GuardianChildRequestScreenState
       firstDate: DateTime(2008),
       lastDate: today,
     );
-    if (result != null) setState(() => _birthDate = result);
+    if (result != null) {
+      setState(() {
+        _birthDate = result;
+        _birthDateError = null;
+      });
+    }
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_birthDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select the child birth date.')),
-      );
+    final formIsValid = _formKey.currentState!.validate();
+    final firstMissingField = _firstName.text.trim().isEmpty
+        ? _firstNameFieldKey
+        : _lastName.text.trim().isEmpty
+        ? _lastNameFieldKey
+        : _birthDate == null
+        ? _birthDateFieldKey
+        : null;
+    setState(() {
+      _birthDateError = _birthDate == null
+          ? 'Select the child’s birth date.'
+          : null;
+    });
+    if (!formIsValid || firstMissingField != null) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      final fieldContext = firstMissingField?.currentContext;
+      if (fieldContext != null && fieldContext.mounted) {
+        await Scrollable.ensureVisible(
+          fieldContext,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+          alignment: 0.18,
+        );
+      }
       return;
     }
     setState(() => _saving = true);
@@ -125,99 +154,126 @@ class _GuardianChildRequestScreenState
     ),
     body: Form(
       key: _formKey,
-      child: ListView(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: .07),
-              borderRadius: BorderRadius.circular(18),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: .07),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.verified_user_outlined),
+                  SizedBox(width: 11),
+                  Expanded(
+                    child: Text(
+                      'The child will appear in your account after a health worker verifies the identity and guardian relationship.',
+                      style: TextStyle(height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 20),
+            Row(
               children: [
-                Icon(Icons.verified_user_outlined),
-                SizedBox(width: 11),
                 Expanded(
-                  child: Text(
-                    'The child will appear in your account after a health worker verifies the identity and guardian relationship.',
-                    style: TextStyle(height: 1.4),
+                  child: _nameField(
+                    _firstName,
+                    'First name',
+                    true,
+                    fieldKey: _firstNameFieldKey,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _nameField(
+                    _lastName,
+                    'Last name',
+                    true,
+                    fieldKey: _lastNameFieldKey,
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(child: _nameField(_firstName, 'First name', true)),
-              const SizedBox(width: 10),
-              Expanded(child: _nameField(_lastName, 'Last name', true)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _nameField(_middleName, 'Middle name or initial', false),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(width: 105, child: _nameField(_suffix, 'Suffix', false)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          InkWell(
-            onTap: _selectBirthDate,
-            child: InputDecorator(
-              decoration: const InputDecoration(
-                labelText: 'Birth date',
-                suffixIcon: Icon(Icons.calendar_month_outlined),
-              ),
-              child: Text(
-                _birthDate == null
-                    ? 'Select date'
-                    : '${_birthDate!.month.toString().padLeft(2, '0')}/${_birthDate!.day.toString().padLeft(2, '0')}/${_birthDate!.year}',
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _nameField(
+                    _middleName,
+                    'Middle name or initial',
+                    false,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 105,
+                  child: _nameField(_suffix, 'Suffix', false),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            InkWell(
+              key: _birthDateFieldKey,
+              onTap: _selectBirthDate,
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Birth date',
+                  suffixIcon: const Icon(Icons.calendar_month_outlined),
+                  errorText: _birthDateError,
+                ),
+                child: Text(
+                  _birthDate == null
+                      ? 'Select date'
+                      : '${_birthDate!.month.toString().padLeft(2, '0')}/${_birthDate!.day.toString().padLeft(2, '0')}/${_birthDate!.year}',
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 14),
-          DropdownButtonFormField<String>(
-            initialValue: _sex,
-            decoration: const InputDecoration(labelText: 'Sex'),
-            items: const ['Female', 'Male']
-                .map(
-                  (value) => DropdownMenuItem(value: value, child: Text(value)),
-                )
-                .toList(),
-            onChanged: (value) => setState(() => _sex = value!),
-          ),
-          const SizedBox(height: 14),
-          DropdownButtonFormField<String>(
-            key: ValueKey(_guardianSex),
-            initialValue: _relationship,
-            decoration: const InputDecoration(labelText: 'Your relationship'),
-            items: GuardianRelationshipOptions.forSex(_guardianSex)
-                .map(
-                  (value) => DropdownMenuItem(value: value, child: Text(value)),
-                )
-                .toList(),
-            onChanged: (value) => setState(() => _relationship = value!),
-          ),
-          const SizedBox(height: 22),
-          FilledButton.icon(
-            onPressed: _saving ? null : _submit,
-            icon: _saving
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              initialValue: _sex,
+              decoration: const InputDecoration(labelText: 'Sex'),
+              items: const ['Female', 'Male']
+                  .map(
+                    (value) =>
+                        DropdownMenuItem(value: value, child: Text(value)),
                   )
-                : const Icon(Icons.send_outlined),
-            label: const Text('Submit for Verification'),
-          ),
-        ],
+                  .toList(),
+              onChanged: (value) => setState(() => _sex = value!),
+            ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              key: ValueKey(_guardianSex),
+              initialValue: _relationship,
+              decoration: const InputDecoration(labelText: 'Your relationship'),
+              items: GuardianRelationshipOptions.forSex(_guardianSex)
+                  .map(
+                    (value) =>
+                        DropdownMenuItem(value: value, child: Text(value)),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() => _relationship = value!),
+            ),
+            const SizedBox(height: 22),
+            FilledButton.icon(
+              onPressed: _saving ? null : _submit,
+              icon: _saving
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.send_outlined),
+              label: const Text('Submit for Verification'),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -225,8 +281,10 @@ class _GuardianChildRequestScreenState
   TextFormField _nameField(
     TextEditingController controller,
     String label,
-    bool required,
-  ) => TextFormField(
+    bool required, {
+    Key? fieldKey,
+  }) => TextFormField(
+    key: fieldKey,
     controller: controller,
     textCapitalization: TextCapitalization.words,
     decoration: InputDecoration(labelText: label),

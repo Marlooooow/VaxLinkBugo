@@ -18,6 +18,10 @@ class UserFacingError {
     if (value.contains('already been reviewed')) {
       return 'This request has already been reviewed. Refresh the list.';
     }
+    if (value.contains('password-reset request') &&
+        (value.contains('not found') || value.contains('no longer pending'))) {
+      return 'This password-reset request is no longer pending. Refresh notifications.';
+    }
     if (value.contains('pending request already exists')) {
       return 'A request for this child is already awaiting review.';
     }

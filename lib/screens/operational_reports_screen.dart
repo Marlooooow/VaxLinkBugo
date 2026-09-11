@@ -281,6 +281,11 @@ class _OperationalReportsScreenState extends State<OperationalReportsScreen> {
                       Icons.inventory_2_outlined,
                     ),
                     _reportChoice(
+                      OperationalReportType.outreachSessions,
+                      'Outreach',
+                      Icons.groups_2_outlined,
+                    ),
+                    _reportChoice(
                       OperationalReportType.childVaccinationRecord,
                       'Child record',
                       Icons.child_care_outlined,
@@ -416,6 +421,8 @@ class _ReportIntro extends StatelessWidget {
         'Administered doses summarized by vaccine, dose number, and record source.',
       OperationalReportType.inventory =>
         'Current usable stock with low-stock, expiry, and period wastage indicators.',
+      OperationalReportType.outreachSessions =>
+        'Outreach sessions with vaccination coverage, batch allocation, and dose reconciliation details.',
       OperationalReportType.childVaccinationRecord =>
         'A selected child’s database-recorded vaccination history for verification or printing.',
       OperationalReportType.inventoryTransactions =>

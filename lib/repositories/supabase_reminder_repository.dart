@@ -7,6 +7,7 @@ import 'live_data_access.dart';
 
 class SupabaseReminderRepository implements ReminderRepository {
   final SupabaseClient _client;
+  final Map<String, Future<void>> _syncsInFlight = {};
 
   SupabaseReminderRepository(this._client);
 
@@ -18,27 +19,85 @@ class SupabaseReminderRepository implements ReminderRepository {
   @override
   Future<void> syncGuardianReminders(String guardianId) async {
     final resolvedId = await _resolveGuardianId(guardianId);
-    try {
-      await _client.rpc(
-        'sync_guardian_reminders',
-        params: {'guardian_id': resolvedId},
-      );
-    } on PostgrestException catch (error) {
-      if (error.message.contains('does not exist') ||
-          error.message.contains('Could not find the function')) {
-        return;
+    await _syncResolvedGuardian(resolvedId);
+  }
+
+  Future<void> _syncResolvedGuardian(String guardianId) {
+    final active = _syncsInFlight[guardianId];
+    if (active != null) return active;
+    final request = _client
+        .rpc(
+          'sync_guardian_reminders',
+          params: {'target_guardian_id': guardianId},
+        )
+        .then<void>((_) {});
+    _syncsInFlight[guardianId] = request;
+    void clear() {
+      if (identical(_syncsInFlight[guardianId], request)) {
+        _syncsInFlight.remove(guardianId);
       }
-      rethrow;
     }
+
+    request.then<void>((_) => clear(), onError: (_, _) => clear());
+    return request;
   }
 
   @override
   Future<List<VaccinationReminder>> getGuardianReminders(
     String guardianId,
-  ) async {
+  ) async => (await getGuardianRemindersPage(guardianId, limit: 100)).items;
+
+  @override
+  Future<ReminderPage> getGuardianRemindersPage(
+    String guardianId, {
+    VaccinationReminderStatus? status,
+    String? childId,
+    int limit = 10,
+    int offset = 0,
+  }) async {
     final resolvedId = await _resolveGuardianId(guardianId);
-    await syncGuardianReminders(resolvedId);
-    return _loadReminders(guardianId: resolvedId);
+    await _syncResolvedGuardian(resolvedId);
+    final payload = Map<String, dynamic>.from(
+      await _client.rpc(
+        'get_guardian_reminder_child_page',
+        params: {
+          'p_guardian_id': resolvedId,
+          'p_status': status == null ? null : _snake(status.name),
+          'p_child_id': childId,
+          'p_page_size': limit,
+          'p_page_offset': offset,
+        },
+      ),
+    );
+    final rows = payload['items'] as List? ?? const [];
+    return ReminderPage(
+      items: rows
+          .map((row) => _fromRow(Map<String, dynamic>.from(row as Map)))
+          .toList(growable: false),
+      hasMore: payload['has_more'] as bool? ?? false,
+      nextOffset: (payload['next_offset'] as num?)?.toInt() ?? offset,
+    );
+  }
+
+  @override
+  Future<ReminderSummary> getGuardianReminderSummary(
+    String guardianId, {
+    String? childId,
+  }) async {
+    final resolvedId = await _resolveGuardianId(guardianId);
+    await _syncResolvedGuardian(resolvedId);
+    final row = Map<String, dynamic>.from(
+      await _client.rpc(
+        'get_guardian_reminder_summary',
+        params: {'p_guardian_id': resolvedId, 'p_child_id': childId},
+      ),
+    );
+    return ReminderSummary(
+      dueToday: (row['due_today'] as num?)?.toInt() ?? 0,
+      overdue: (row['overdue'] as num?)?.toInt() ?? 0,
+      upcoming: (row['upcoming'] as num?)?.toInt() ?? 0,
+      unread: (row['unread'] as num?)?.toInt() ?? 0,
+    );
   }
 
   // Screens pass the authenticated profile ID; reminders reference guardians.id.
@@ -63,6 +122,7 @@ class SupabaseReminderRepository implements ReminderRepository {
 
   @override
   Future<ReminderPage> getFacilityFollowUpsPage({
+    VaccinationReminderStatus? status,
     int limit = 10,
     int offset = 0,
   }) async {
@@ -74,8 +134,12 @@ class SupabaseReminderRepository implements ReminderRepository {
     final safeOffset = offset < 0 ? 0 : offset;
     final payload = Map<String, dynamic>.from(
       await _client.rpc(
-        'get_facility_follow_up_child_page',
-        params: {'page_size': safeLimit, 'page_offset': safeOffset},
+        'get_filtered_facility_follow_up_child_page',
+        params: {
+          'p_status': status == null ? null : _snake(status.name),
+          'p_page_size': safeLimit,
+          'p_page_offset': safeOffset,
+        },
       ),
     );
     final rows = payload['items'] as List? ?? const [];

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
@@ -29,9 +31,16 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
   final ChildRepository _repository =
       RepositoryRegistry.instance.childRepository;
   final _searchController = TextEditingController();
-  late Future<List<_FamilySummary>> _families;
+  final List<RegisteredFamilySummary> _loadedFamilies = [];
+  late Future<List<RegisteredFamilySummary>> _families;
+  Timer? _searchDebounce;
   VaccinationScheduleState? _filter;
   bool _dashboardSelectionActive = false;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  int _totalCount = 0;
+  DateTime? _nextCreatedAt;
+  String? _nextGuardianId;
 
   @override
   void initState() {
@@ -42,34 +51,38 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _load() => _families = _loadSummaries();
+  void _load() {
+    _nextCreatedAt = null;
+    _nextGuardianId = null;
+    _hasMore = false;
+    _totalCount = 0;
+    _families = _loadPage(reset: true);
+  }
 
-  Future<List<_FamilySummary>> _loadSummaries() async {
-    final families = await _repository.getHealthWorkerRegisteredFamilies();
-    final vaccinationRepository =
-        RepositoryRegistry.instance.vaccinationRepository;
-    final summaries = await Future.wait(
-      families.map((family) async {
-        final states = <String, VaccinationScheduleState>{};
-        for (final child in family.children) {
-          final schedule = await vaccinationRepository.getVaccinationSchedule(
-            child,
-          );
-          states[child.id] = summarizeSchedule(schedule);
-        }
-        return _FamilySummary(family: family, childStates: states);
-      }),
+  Future<List<RegisteredFamilySummary>> _loadPage({required bool reset}) async {
+    final page = await _repository.getHealthWorkerRegisteredFamiliesPage(
+      search: _searchController.text,
+      status: _filter,
+      guardianIds: _dashboardSelectionActive ? widget.initialGuardianIds : null,
+      pageSize: 20,
+      cursorCreatedAt: reset ? null : _nextCreatedAt,
+      cursorGuardianId: reset ? null : _nextGuardianId,
     );
-    summaries.sort(
-      (a, b) => b.family.guardian.registeredAt.compareTo(
-        a.family.guardian.registeredAt,
-      ),
+    if (reset) _loadedFamilies.clear();
+    final ids = _loadedFamilies.map((item) => item.family.guardian.id).toSet();
+    _loadedFamilies.addAll(
+      page.items.where((item) => ids.add(item.family.guardian.id)),
     );
-    return summaries;
+    _hasMore = page.hasMore;
+    _totalCount = page.totalCount;
+    _nextCreatedAt = page.nextCreatedAt;
+    _nextGuardianId = page.nextGuardianId;
+    return List.unmodifiable(_loadedFamilies);
   }
 
   Future<void> _refresh() async {
@@ -77,22 +90,24 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
     await _families;
   }
 
-  bool _matchesSearch(RegisteredFamily family) {
-    final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) return true;
-    return family.guardian.fullName.toLowerCase().contains(query) ||
-        family.guardian.guardianCode.toLowerCase().contains(query) ||
-        family.children.any(
-          (child) =>
-              child.fullName.toLowerCase().contains(query) ||
-              child.id.toLowerCase().contains(query),
-        );
+  void _onSearchChanged(String _) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) setState(_load);
+    });
   }
 
-  bool _matchesDashboardSelection(RegisteredFamily family) =>
-      !_dashboardSelectionActive ||
-      widget.initialGuardianIds == null ||
-      widget.initialGuardianIds!.contains(family.guardian.id);
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final items = await _loadPage(reset: false);
+      if (mounted) setState(() => _families = Future.value(items));
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +119,7 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
         ),
         actions: const [WorkerAppBarActions()],
       ),
-      body: FutureBuilder<List<_FamilySummary>>(
+      body: FutureBuilder<List<RegisteredFamilySummary>>(
         future: _families,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
@@ -113,16 +128,16 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
               message: 'Preparing guardians, children, and schedule summaries.',
             );
           }
-          final all = snapshot.data ?? const [];
-          final visible = all
-              .where(
-                (summary) =>
-                    _matchesDashboardSelection(summary.family) &&
-                    _matchesSearch(summary.family) &&
-                    (_filter == null ||
-                        summary.childStates.values.contains(_filter)),
-              )
-              .toList();
+          if (snapshot.hasError) {
+            return Center(
+              child: TextButton.icon(
+                onPressed: () => setState(_load),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Registered families could not be loaded'),
+              ),
+            );
+          }
+          final visible = snapshot.data ?? const [];
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView(
@@ -159,7 +174,7 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
                 ],
                 TextField(
                   controller: _searchController,
-                  onChanged: (_) => setState(() {}),
+                  onChanged: _onSearchChanged,
                   decoration: InputDecoration(
                     hintText: 'Search guardian, child, or ID',
                     prefixIcon: const Icon(Icons.search_rounded),
@@ -169,7 +184,8 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
                             tooltip: 'Clear search',
                             onPressed: () {
                               _searchController.clear();
-                              setState(() {});
+                              _searchDebounce?.cancel();
+                              setState(_load);
                             },
                             icon: const Icon(Icons.close_rounded),
                           ),
@@ -186,6 +202,7 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
                         onSelected: () => setState(() {
                           _filter = null;
                           _dashboardSelectionActive = false;
+                          _load();
                         }),
                       ),
                       for (final state in VaccinationScheduleState.values)
@@ -194,7 +211,11 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
                           child: _StatusFilter(
                             label: state.label,
                             selected: _filter == state,
-                            onSelected: () => setState(() => _filter = state),
+                            onSelected: () => setState(() {
+                              _filter = state;
+                              _dashboardSelectionActive = false;
+                              _load();
+                            }),
                           ),
                         ),
                     ],
@@ -202,7 +223,7 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  _resultCountLabel(visible.length, all.length),
+                  _resultCountLabel(visible.length, _totalCount),
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -218,6 +239,22 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
                       onChanged: () => setState(_load),
                     ),
                   ),
+                if (_hasMore)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: OutlinedButton.icon(
+                      onPressed: _loadingMore ? null : _loadMore,
+                      icon: _loadingMore
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.expand_more_rounded),
+                      label: Text(
+                        _loadingMore ? 'Loading more…' : 'Load more families',
+                      ),
+                    ),
+                  ),
               ],
             ),
           );
@@ -228,23 +265,17 @@ class _RegisteredFamiliesScreenState extends State<RegisteredFamiliesScreen> {
 
   String _resultCountLabel(int visibleCount, int totalCount) {
     if (_dashboardSelectionActive) {
-      return '$visibleCount families due or overdue • $totalCount total registered';
+      return '$visibleCount of $totalCount families due or overdue';
     }
     if (_filter != null || _searchController.text.trim().isNotEmpty) {
-      return '$visibleCount matching families • $totalCount total registered';
+      return '$visibleCount of $totalCount matching families';
     }
-    return '$totalCount registered families';
+    return '$visibleCount of $totalCount registered families';
   }
 }
 
-class _FamilySummary {
-  final RegisteredFamily family;
-  final Map<String, VaccinationScheduleState> childStates;
-  const _FamilySummary({required this.family, required this.childStates});
-}
-
 class _FamilyCard extends StatelessWidget {
-  final _FamilySummary summary;
+  final RegisteredFamilySummary summary;
   final String registeredByUserId;
   final VoidCallback onChanged;
   const _FamilyCard({

@@ -6,6 +6,18 @@ abstract class AppointmentRepository {
     String guardianId,
   );
 
+  Future<AppointmentPage> getGuardianAppointmentsPage(
+    String guardianId, {
+    String? initialAppointmentId,
+    int limit = 20,
+    int offset = 0,
+  });
+
+  Future<List<VaccinationAppointment>> getGuardianUpcomingAppointments(
+    String guardianId, {
+    int limit = 2,
+  });
+
   Future<List<VaccinationAppointment>> getChildAppointments(String childId);
 
   Future<List<VaccinationAppointment>> getFacilityAppointments();
@@ -37,6 +49,14 @@ abstract class AppointmentRepository {
   );
 
   Future<List<AppointmentSlotOffer>> getGuardianSlotOffers(String guardianId);
+
+  Future<AppointmentOfferPage> getGuardianSlotOffersPage(
+    String guardianId, {
+    AppointmentSlotOfferStatus? status,
+    String? initialOfferId,
+    int limit = 20,
+    int offset = 0,
+  });
 
   Future<List<AppointmentSlotOffer>> getFacilitySlotOffers();
 

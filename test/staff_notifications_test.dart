@@ -69,11 +69,20 @@ class _Repository implements StaffNotificationRepository {
       (await load()).where((item) => !isRead(userId, item.id)).length;
 
   @override
-  Future<String> resetGuardianPassword(String requestId) async => 'guardian123';
+  Future<GuardianPasswordResetResult> resetGuardianPassword(
+    String requestId,
+  ) async => const GuardianPasswordResetResult(
+    loginId: 'GRD-2026-000001',
+    temporaryPassword: 'guardian123',
+  );
 
   @override
-  Future<String> resetGuardianPasswordForGuardian(String guardianId) async =>
-      'guardian123';
+  Future<GuardianPasswordResetResult> resetGuardianPasswordForGuardian(
+    String guardianId,
+  ) async => const GuardianPasswordResetResult(
+    loginId: 'GRD-2026-000001',
+    temporaryPassword: 'guardian123',
+  );
 }
 
 void main() {

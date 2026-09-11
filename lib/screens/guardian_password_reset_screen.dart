@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/staff_notification.dart';
 import '../repositories/staff_notification_repository.dart';
 import '../utils/user_facing_error.dart';
+import '../widgets/app_feedback.dart';
 
 class GuardianPasswordResetScreen extends StatefulWidget {
   final StaffNotification notification;
@@ -22,6 +23,7 @@ class GuardianPasswordResetScreen extends StatefulWidget {
 class _GuardianPasswordResetScreenState
     extends State<GuardianPasswordResetScreen> {
   bool _resetting = false;
+  String? _loginId;
   String? _temporaryPassword;
 
   Future<void> _reset() async {
@@ -29,23 +31,25 @@ class _GuardianPasswordResetScreenState
     if (requestId == null || requestId.isEmpty || _resetting) return;
     setState(() => _resetting = true);
     try {
-      final password = await widget.repository.resetGuardianPassword(requestId);
+      final result = await widget.repository.resetGuardianPassword(requestId);
       if (!mounted) return;
       setState(() {
         _resetting = false;
-        _temporaryPassword = password;
+        _loginId = result.loginId;
+        _temporaryPassword = result.temporaryPassword;
       });
+      AppFeedback.success(
+        context,
+        message: 'The guardian password was reset successfully.',
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() => _resetting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserFacingError.message(
-              error,
-              fallback: 'The guardian password could not be reset.',
-            ),
-          ),
+      AppFeedback.failure(
+        context,
+        message: UserFacingError.message(
+          error,
+          fallback: 'The guardian password could not be reset.',
         ),
       );
     }
@@ -95,16 +99,8 @@ class _GuardianPasswordResetScreenState
                 Text(widget.notification.body),
                 const SizedBox(height: 14),
                 _Detail(
-                  label: 'Notification ID',
-                  value: widget.notification.id,
-                ),
-                _Detail(
-                  label: 'Reset request ID',
-                  value: widget.notification.entityId ?? 'Unavailable',
-                ),
-                _Detail(
-                  label: 'Received',
-                  value: widget.notification.createdAt.toLocal().toString(),
+                  label: 'Received date',
+                  value: _formatReceivedDate(context),
                 ),
               ],
             ),
@@ -131,10 +127,22 @@ class _GuardianPasswordResetScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Temporary password generated',
+                    'Guardian login credentials',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 10),
+                  const Text('Guardian ID / Login ID'),
+                  const SizedBox(height: 4),
+                  SelectableText(
+                    _loginId!,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Temporary password'),
+                  const SizedBox(height: 4),
                   SelectableText(
                     _temporaryPassword!,
                     style: const TextStyle(
@@ -154,6 +162,17 @@ class _GuardianPasswordResetScreenState
       ],
     ),
   );
+
+  String _formatReceivedDate(BuildContext context) {
+    final received = widget.notification.createdAt.toLocal();
+    final localizations = MaterialLocalizations.of(context);
+    final date = localizations.formatMediumDate(received);
+    final time = localizations.formatTimeOfDay(
+      TimeOfDay.fromDateTime(received),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
+    return '$date • $time';
+  }
 }
 
 class _Detail extends StatelessWidget {

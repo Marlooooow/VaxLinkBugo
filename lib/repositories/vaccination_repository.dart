@@ -12,6 +12,10 @@ abstract class VaccinationRepository {
 
   Future<List<PnipScheduleEntry>> getVaccinationSchedule(ChildProfile child);
 
+  Future<Map<String, List<PnipScheduleEntry>>> getVaccinationSchedules(
+    List<ChildProfile> children,
+  );
+
   Future<List<VaccinationRecord>> recordVaccinations(
     List<VaccinationRecord> records,
   );

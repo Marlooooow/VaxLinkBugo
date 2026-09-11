@@ -3,13 +3,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../models/qr_scan_result.dart';
 import '../repositories/qr_repository.dart';
 import '../repositories/live_qr_repository.dart';
 import '../widgets/worker_app_bar_actions.dart';
 import 'qr_scan_result_screen.dart';
 
 class QrScanScreen extends StatefulWidget {
-  const QrScanScreen({super.key});
+  final String? outreachSessionId;
+  final String? outreachTitle;
+
+  const QrScanScreen({super.key, this.outreachSessionId, this.outreachTitle});
 
   @override
   State<QrScanScreen> createState() => _QrScanScreenState();
@@ -75,6 +79,25 @@ class _QrScanScreenState extends State<QrScanScreen> {
     );
   }
 
+  Future<void> _openScanResult(QrScanResult result) async {
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QrScanResultScreen(
+          result: result,
+          outreachSessionId: widget.outreachSessionId,
+          outreachTitle: widget.outreachTitle,
+        ),
+      ),
+    );
+    if (!mounted) return;
+
+    setState(() => _isScanning = false);
+    if (_liveMode) {
+      await _retryCamera();
+    }
+  }
+
   Future<void> _handleDetectedCode(String code) async {
     if (_isScanning) return;
 
@@ -101,10 +124,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
         return;
       }
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => QrScanResultScreen(result: result)),
-      );
+      await _openScanResult(result);
     } catch (error) {
       if (!mounted) return;
 
@@ -198,10 +218,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
         return;
       }
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => QrScanResultScreen(result: result)),
-      );
+      await _openScanResult(result);
     } catch (error) {
       if (!mounted) return;
 
@@ -237,10 +254,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
         return;
       }
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => QrScanResultScreen(result: result)),
-      );
+      await _openScanResult(result);
     } catch (error) {
       if (!mounted) return;
 
@@ -258,9 +272,11 @@ class _QrScanScreenState extends State<QrScanScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Scan Child QR',
-          style: TextStyle(fontWeight: FontWeight.w800),
+        title: Text(
+          widget.outreachSessionId == null
+              ? 'Scan Child QR'
+              : 'Outreach Child Scan',
+          style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: const [WorkerAppBarActions()],
       ),

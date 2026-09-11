@@ -104,7 +104,8 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         titleTextStyle: TextStyle(
           color: foreground,
-          fontSize: 22,
+          fontSize: 20,
+          height: 1.15,
           fontWeight: FontWeight.w700,
         ),
       ),

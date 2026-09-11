@@ -44,6 +44,37 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
   }
 
   @override
+  Future<Map<String, List<PnipScheduleEntry>>> getVaccinationSchedules(
+    List<ChildProfile> children,
+  ) async {
+    if (children.isEmpty) return const {};
+    final grouped = <String, List<PnipScheduleEntry>>{
+      for (final child in children) child.id: [],
+    };
+    for (var start = 0; start < children.length; start += 50) {
+      final end = (start + 50).clamp(0, children.length);
+      final rows = await _client.rpc(
+        'get_children_pnip_schedules',
+        params: {
+          'target_child_ids': children
+              .sublist(start, end)
+              .map((child) => child.id)
+              .toList(),
+        },
+      );
+      for (final raw in rows as List) {
+        final row = Map<String, dynamic>.from(raw as Map);
+        final childId = row.remove('child_id') as String;
+        grouped[childId]?.add(PnipScheduleEntry.fromJson(row));
+      }
+    }
+    return {
+      for (final entry in grouped.entries)
+        entry.key: List.unmodifiable(entry.value),
+    };
+  }
+
+  @override
   Future<VaccinationAssessment> assessChild(ChildProfile child) async {
     final historyRequest = getVaccinationHistory(child.id);
     final scheduleRequest = getVaccinationSchedule(child);
@@ -78,8 +109,8 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
       id: row['id'] as String,
       reviewCode: row['review_code'] as String,
       childId: row['child_id'] as String,
-      hasDocumentedPreviousVaccinations:
-          row['has_documented_previous_vaccinations'] as bool,
+      historyStatus: _historyStatus(row),
+      notes: row['history_notes'] as String? ?? '',
       reviewedAt: DateTime.parse(row['reviewed_at'] as String),
       reviewedByUserId: row['reviewed_by'] as String,
     );
@@ -197,7 +228,8 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
         'record_first_visit_review',
         params: {
           'target_child_id': review.childId,
-          'has_documents': review.hasDocumentedPreviousVaccinations,
+          'selected_history_status': _historyStatusValue(review.historyStatus),
+          'review_notes': review.notes,
         },
       ),
     );
@@ -252,8 +284,8 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
         id: row['id'] as String,
         reviewCode: row['review_code'] as String,
         childId: row['child_id'] as String,
-        hasDocumentedPreviousVaccinations:
-            row['has_documented_previous_vaccinations'] as bool,
+        historyStatus: _historyStatus(row),
+        notes: row['history_notes'] as String? ?? '',
         reviewedAt: DateTime.parse(row['reviewed_at'] as String),
         reviewedByUserId: row['reviewed_by'] as String,
       );
@@ -262,7 +294,26 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
     VaccinationSource.bugo => 'local',
     VaccinationSource.externalReferral => 'external_referral',
     VaccinationSource.previousRecord => 'previous_record',
+    VaccinationSource.outreach => 'outreach',
   };
+
+  static FirstVisitHistoryStatus _historyStatus(Map<String, dynamic> row) =>
+      switch (row['history_status']) {
+        'verified_records' => FirstVisitHistoryStatus.verifiedRecords,
+        'confirmed_none' => FirstVisitHistoryStatus.confirmedNone,
+        'unknown_history' => FirstVisitHistoryStatus.unknownHistory,
+        _ =>
+          row['has_documented_previous_vaccinations'] == true
+              ? FirstVisitHistoryStatus.verifiedRecords
+              : FirstVisitHistoryStatus.unknownHistory,
+      };
+
+  static String _historyStatusValue(FirstVisitHistoryStatus value) =>
+      switch (value) {
+        FirstVisitHistoryStatus.verifiedRecords => 'verified_records',
+        FirstVisitHistoryStatus.unknownHistory => 'unknown_history',
+        FirstVisitHistoryStatus.confirmedNone => 'confirmed_none',
+      };
 
   static String _screeningOutcome(VaccinationScreeningOutcome outcome) =>
       outcome.name;
@@ -291,6 +342,7 @@ class SupabaseVaccinationRepository implements VaccinationRepository {
           'local' => VaccinationSource.bugo,
           'external_referral' => VaccinationSource.externalReferral,
           'previous_record' => VaccinationSource.previousRecord,
+          'outreach' => VaccinationSource.outreach,
           _ => throw const FormatException('Unknown vaccination source.'),
         },
         notes: row['notes'] as String? ?? '',

@@ -58,6 +58,50 @@ class MockReminderRepository implements ReminderRepository {
   }
 
   @override
+  Future<ReminderPage> getGuardianRemindersPage(
+    String guardianId, {
+    VaccinationReminderStatus? status,
+    String? childId,
+    int limit = 10,
+    int offset = 0,
+  }) async {
+    final all = (await getGuardianReminders(guardianId))
+        .where(
+          (reminder) =>
+              _isInActionableWindow(reminder) &&
+              (status == null || reminder.status == status) &&
+              (childId == null || reminder.childId == childId),
+        )
+        .toList(growable: false);
+    final remindersByChild = <String, List<VaccinationReminder>>{};
+    for (final reminder in all) {
+      remindersByChild.putIfAbsent(reminder.childId, () => []).add(reminder);
+    }
+    final childIds = remindersByChild.keys.toList(growable: false);
+    final start = offset.clamp(0, childIds.length);
+    final end = (start + limit.clamp(1, 100)).clamp(0, childIds.length);
+    return ReminderPage(
+      items: [
+        for (final id in childIds.sublist(start, end)) ...remindersByChild[id]!,
+      ],
+      hasMore: end < childIds.length,
+      nextOffset: end,
+    );
+  }
+
+  @override
+  Future<ReminderSummary> getGuardianReminderSummary(
+    String guardianId, {
+    String? childId,
+  }) async => ReminderSummary.fromItems(
+    (await getGuardianReminders(guardianId)).where(
+      (reminder) =>
+          _isInActionableWindow(reminder) &&
+          (childId == null || reminder.childId == childId),
+    ),
+  );
+
+  @override
   Future<List<VaccinationReminder>> getFacilityFollowUps() async {
     final families = await childRepository.getHealthWorkerRegisteredFamilies();
     final reminders = <VaccinationReminder>[];
@@ -75,11 +119,16 @@ class MockReminderRepository implements ReminderRepository {
 
   @override
   Future<ReminderPage> getFacilityFollowUpsPage({
+    VaccinationReminderStatus? status,
     int limit = 10,
     int offset = 0,
   }) async {
     final all = (await getFacilityFollowUps())
-        .where(_isInActionableWindow)
+        .where(
+          (reminder) =>
+              _isInActionableWindow(reminder) &&
+              (status == null || reminder.status == status),
+        )
         .toList(growable: false);
     final remindersByChild = <String, List<VaccinationReminder>>{};
     for (final reminder in all) {

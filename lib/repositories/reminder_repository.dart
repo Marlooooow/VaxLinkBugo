@@ -5,6 +5,7 @@ class ReminderSummary {
   final int dueToday;
   final int overdue;
   final int upcoming;
+  final int unread;
   final List<String> guardianIds;
   final List<ReminderVaccineCount> vaccineCounts;
 
@@ -12,6 +13,7 @@ class ReminderSummary {
     required this.dueToday,
     required this.overdue,
     required this.upcoming,
+    this.unread = 0,
     this.guardianIds = const [],
     this.vaccineCounts = const [],
   });
@@ -46,6 +48,7 @@ class ReminderSummary {
       upcoming: rows
           .where((item) => item.status == VaccinationReminderStatus.upcoming)
           .length,
+      unread: rows.where((item) => item.hasUnreadNotification).length,
       guardianIds: rows
           .where(
             (item) =>
@@ -77,9 +80,23 @@ abstract class ReminderRepository {
 
   Future<List<VaccinationReminder>> getGuardianReminders(String guardianId);
 
+  Future<ReminderPage> getGuardianRemindersPage(
+    String guardianId, {
+    VaccinationReminderStatus? status,
+    String? childId,
+    int limit = 10,
+    int offset = 0,
+  });
+
+  Future<ReminderSummary> getGuardianReminderSummary(
+    String guardianId, {
+    String? childId,
+  });
+
   Future<List<VaccinationReminder>> getFacilityFollowUps();
 
   Future<ReminderPage> getFacilityFollowUpsPage({
+    VaccinationReminderStatus? status,
     int limit = 10,
     int offset = 0,
   });

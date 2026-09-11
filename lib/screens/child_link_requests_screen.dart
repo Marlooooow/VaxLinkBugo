@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../repositories/repository_registry.dart';
 import 'package:flutter/material.dart';
 
@@ -7,6 +9,7 @@ import '../utils/user_facing_error.dart';
 import 'package:qr_code_based_pediatric_vaccination/models/guardian/guardian_profile.dart';
 import '../repositories/child_repository.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/worker_app_bar_actions.dart';
 
 class ChildLinkRequestsScreen extends StatefulWidget {
@@ -26,7 +29,14 @@ class ChildLinkRequestsScreen extends StatefulWidget {
 class _ChildLinkRequestsScreenState extends State<ChildLinkRequestsScreen> {
   final ChildRepository _repository =
       RepositoryRegistry.instance.childRepository;
+  final _searchController = TextEditingController();
+  final List<ChildLinkRequest> _loadedRequests = [];
   late Future<List<ChildLinkRequest>> _requests;
+  Timer? _searchDebounce;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  int _nextOffset = 0;
+  int _totalCount = 0;
 
   @override
   void initState() {
@@ -34,7 +44,59 @@ class _ChildLinkRequestsScreenState extends State<ChildLinkRequestsScreen> {
     _reload();
   }
 
-  void _reload() => _requests = _repository.getPendingChildLinkRequests();
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _reload() {
+    _nextOffset = 0;
+    _hasMore = false;
+    _totalCount = 0;
+    _requests = _loadPage(reset: true);
+  }
+
+  Future<List<ChildLinkRequest>> _loadPage({required bool reset}) async {
+    final page = await _repository.getPendingChildLinkRequestsPage(
+      query: _searchController.text,
+      initialRequestId: widget.initialRequestId,
+      limit: 20,
+      offset: reset ? 0 : _nextOffset,
+    );
+    if (reset) _loadedRequests.clear();
+    final ids = _loadedRequests.map((item) => item.id).toSet();
+    _loadedRequests.addAll(page.items.where((item) => ids.add(item.id)));
+    _hasMore = page.hasMore;
+    _nextOffset = page.nextOffset;
+    _totalCount = page.totalCount;
+    return List.unmodifiable(_loadedRequests);
+  }
+
+  void _onSearchChanged(String _) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) setState(_reload);
+    });
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final items = await _loadPage(reset: false);
+      if (mounted) setState(() => _requests = Future.value(items));
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  Future<void> _refresh() async {
+    setState(_reload);
+    await _requests;
+  }
 
   Future<bool> _review(ChildLinkRequest request, bool approve) async {
     final notes = TextEditingController();
@@ -86,25 +148,19 @@ class _ChildLinkRequestsScreenState extends State<ChildLinkRequestsScreen> {
       );
       if (!mounted) return false;
       setState(_reload);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            approve ? 'Child verified and linked.' : 'Request rejected.',
-          ),
-        ),
+      AppFeedback.success(
+        context,
+        message: approve ? 'Child verified and linked.' : 'Request rejected.',
       );
       return true;
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              UserFacingError.message(
-                error,
-                fallback:
-                    'The child-link request could not be updated. Please try again.',
-              ),
-            ),
+        AppFeedback.failure(
+          context,
+          message: UserFacingError.message(
+            error,
+            fallback:
+                'The child-link request could not be updated. Please try again.',
           ),
         );
       }
@@ -217,43 +273,96 @@ class _ChildLinkRequestsScreenState extends State<ChildLinkRequestsScreen> {
               message: 'Checking for child-link requests awaiting review.',
             );
           }
-          final requests = snapshot.data ?? const [];
-          if (requests.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(28),
-                child: Text('No child-link requests are waiting for review.'),
+          if (snapshot.hasError) {
+            return Center(
+              child: TextButton.icon(
+                onPressed: () => setState(_reload),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Child-link requests could not be loaded'),
               ),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
-            itemCount: requests.length,
-            itemBuilder: (context, index) {
-              final request = requests[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.child_care_rounded),
+          final requests = snapshot.data ?? const [];
+          return RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
+              children: [
+                TextField(
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: 'Search child, guardian, or request ID',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: _searchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Clear search',
+                            onPressed: () {
+                              _searchController.clear();
+                              _searchDebounce?.cancel();
+                              setState(_reload);
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
                   ),
-                  title: Text(
-                    request.childName,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '${requests.length} of $_totalCount pending request(s)',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 5),
+                ),
+                const SizedBox(height: 12),
+                if (requests.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(28),
                     child: Text(
-                      '${request.guardianName}\n${request.requestCode} • Pending review',
+                      'No matching child-link requests are waiting for review.',
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else
+                  for (final request in requests)
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.all(16),
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.child_care_rounded),
+                        ),
+                        title: Text(
+                          request.childName,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 5),
+                          child: Text(
+                            '${request.guardianName}\n${request.requestCode} • Pending review',
+                          ),
+                        ),
+                        isThreeLine: true,
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => _openRequest(request),
+                      ),
+                    ),
+                if (_hasMore)
+                  OutlinedButton.icon(
+                    onPressed: _loadingMore ? null : _loadMore,
+                    icon: _loadingMore
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.expand_more_rounded),
+                    label: Text(
+                      _loadingMore ? 'Loading more…' : 'Load more requests',
                     ),
                   ),
-                  isThreeLine: true,
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => _openRequest(request),
-                ),
-              );
-            },
+              ],
+            ),
           );
         },
       ),

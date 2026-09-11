@@ -41,6 +41,8 @@ import 'mock_vaccination_records_repository.dart';
 import 'operational_report_repository.dart';
 import 'supabase_operational_report_repository.dart';
 import 'unavailable_operational_report_repository.dart';
+import 'outreach_repository.dart';
+import 'supabase_outreach_repository.dart';
 
 class RepositoryRegistry {
   static late RepositoryRegistry instance;
@@ -54,6 +56,7 @@ class RepositoryRegistry {
   final VaccinationRepository vaccinationRepository;
   final VaccinationRecordsRepository vaccinationRecordsRepository;
   final OperationalReportRepository operationalReportRepository;
+  final OutreachRepository outreachRepository;
   final AppointmentRepository appointmentRepository;
   final ReferralRepository referralRepository;
   final QrRepository qrRepository;
@@ -71,6 +74,7 @@ class RepositoryRegistry {
     required this.vaccinationRepository,
     required this.vaccinationRecordsRepository,
     required this.operationalReportRepository,
+    required this.outreachRepository,
     required this.appointmentRepository,
     required this.referralRepository,
     required this.qrRepository,
@@ -108,6 +112,9 @@ class RepositoryRegistry {
       operationalReportRepository: live
           ? SupabaseOperationalReportRepository(database!)
           : const UnavailableOperationalReportRepository(),
+      outreachRepository: live
+          ? SupabaseOutreachRepository(database!)
+          : const UnavailableOutreachRepository(),
       appointmentRepository: live
           ? SupabaseAppointmentRepository(database!)
           : MockAppointmentRepository(),

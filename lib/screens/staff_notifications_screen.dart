@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../models/app_user.dart';
 import '../models/staff_notification.dart';
@@ -26,6 +28,9 @@ class _StaffNotificationBellState extends State<StaffNotificationBell>
     with WidgetsBindingObserver {
   late final StaffNotificationRepository _repository;
   late Future<int> _unreadCount;
+  Timer? _refreshTimer;
+  int? _lastUnreadCount;
+  bool _openingInbox = false;
   @override
   void initState() {
     super.initState();
@@ -34,7 +39,11 @@ class _StaffNotificationBellState extends State<StaffNotificationBell>
         widget.repository ??
         RepositoryRegistry.instance.staffNotificationRepository;
     _repository.changes.addListener(_readStateChanged);
-    _unreadCount = _repository.unreadCount(widget.user.id);
+    _unreadCount = _readUnreadCount();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => _reload(announceIncrease: true),
+    );
   }
 
   @override
@@ -42,29 +51,53 @@ class _StaffNotificationBellState extends State<StaffNotificationBell>
     if (state == AppLifecycleState.resumed && mounted) _reload();
   }
 
-  void _reload() {
+  Future<int> _readUnreadCount({bool announceIncrease = false}) async {
+    final count = await _repository.unreadCount(widget.user.id);
+    final previous = _lastUnreadCount;
+    _lastUnreadCount = count;
+    if (announceIncrease && previous != null && count > previous && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: const Text('A new staff notification was received.'),
+            action: SnackBarAction(label: 'View', onPressed: _openInbox),
+          ),
+        );
+    }
+    return count;
+  }
+
+  void _reload({bool announceIncrease = false}) {
     if (mounted) {
-      setState(() => _unreadCount = _repository.unreadCount(widget.user.id));
+      final next = _readUnreadCount(announceIncrease: announceIncrease);
+      setState(() {
+        _unreadCount = next;
+      });
     }
   }
 
   void _readStateChanged() {
-    _reload();
+    _reload(announceIncrease: true);
   }
 
-  void _openInbox() {
-    if (!mounted) return;
+  Future<void> _openInbox() async {
+    if (!mounted || _openingInbox) return;
+    _openingInbox = true;
+    ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
     final route = MaterialPageRoute(
       builder: (_) =>
           StaffNotificationsScreen(user: widget.user, repository: _repository),
     );
-    Navigator.of(context).push(route).then((_) {
-      if (mounted) _reload();
-    });
+    await Navigator.of(context, rootNavigator: true).push(route);
+    if (!mounted) return;
+    _openingInbox = false;
+    _reload();
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _repository.changes.removeListener(_readStateChanged);
     super.dispose();
@@ -162,7 +195,9 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
     try {
       final page = await _fetchPage(reset: true);
       if (!mounted) return;
-      setState(() => _items = Future.value(page));
+      setState(() {
+        _items = Future.value(page);
+      });
     } catch (_) {
       // Keep the already displayed inbox when a background refresh fails.
     }
@@ -179,7 +214,9 @@ class _StaffNotificationsScreenState extends State<StaffNotificationsScreen> {
     try {
       final page = await _fetchPage(reset: false);
       if (!mounted) return;
-      setState(() => _items = Future.value(page));
+      setState(() {
+        _items = Future.value(page);
+      });
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

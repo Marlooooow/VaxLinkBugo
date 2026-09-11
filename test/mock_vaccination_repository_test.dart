@@ -51,7 +51,7 @@ void main() {
       id: '00000000-0000-4000-8000-777777777777',
       reviewCode: 'FVR-2026-777777',
       childId: 'CH-FIRST-VISIT-TEST',
-      hasDocumentedPreviousVaccinations: false,
+      historyStatus: FirstVisitHistoryStatus.confirmedNone,
       reviewedAt: DateTime(2026, 8, 28),
       reviewedByUserId: 'USR-H-001',
     );

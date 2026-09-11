@@ -2,27 +2,37 @@ import 'package:flutter/material.dart';
 
 import '../models/qr_scan_result.dart';
 import 'vaccination_assessment_screen.dart';
-import 'qr_scan_screen.dart';
 
 class QrScanResultScreen extends StatelessWidget {
   final QrScanResult result;
+  final String? outreachSessionId;
+  final String? outreachTitle;
 
-  const QrScanResultScreen({super.key, required this.result});
+  const QrScanResultScreen({
+    super.key,
+    required this.result,
+    this.outreachSessionId,
+    this.outreachTitle,
+  });
 
-  void _assessVaccination(BuildContext context) {
-    Navigator.push(
+  Future<void> _assessVaccination(BuildContext context) async {
+    final completed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => VaccinationAssessmentScreen(child: result.child),
+        builder: (_) => VaccinationAssessmentScreen(
+          child: result.child,
+          outreachSessionId: outreachSessionId,
+          outreachTitle: outreachTitle,
+        ),
       ),
     );
+    if (completed == true && context.mounted) {
+      Navigator.pop(context, true);
+    }
   }
 
   void _scanAnotherChild(BuildContext context) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const QrScanScreen()),
-    );
+    Navigator.pop(context);
   }
 
   @override

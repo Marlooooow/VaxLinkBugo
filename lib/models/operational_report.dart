@@ -2,6 +2,7 @@ enum OperationalReportType {
   followUps,
   vaccinationAccomplishment,
   inventory,
+  outreachSessions,
   childVaccinationRecord,
   inventoryTransactions,
 }

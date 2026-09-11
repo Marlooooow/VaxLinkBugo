@@ -33,6 +33,14 @@ class SupabaseOperationalReportRepository
         'get_inventory_transaction_report',
         params: {'p_from_date': _date(fromDate), 'p_to_date': _date(toDate)},
       ),
+      OperationalReportType.vaccinationAccomplishment => await _client.rpc(
+        'get_vaccination_accomplishment_report',
+        params: {'p_from_date': _date(fromDate), 'p_to_date': _date(toDate)},
+      ),
+      OperationalReportType.outreachSessions => await _client.rpc(
+        'get_outreach_session_report',
+        params: {'p_from_date': _date(fromDate), 'p_to_date': _date(toDate)},
+      ),
       _ => await _client.rpc(
         'get_operational_report',
         params: {

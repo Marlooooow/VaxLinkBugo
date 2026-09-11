@@ -6,6 +6,7 @@ import '../services/session_context.dart';
 import '../utils/user_facing_error.dart';
 import '../widgets/offer_timing_panel.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/guardian_app_bar_actions.dart';
 import '../widgets/worker_app_bar_actions.dart';
 
@@ -49,20 +50,30 @@ class _EarlierAppointmentOffersScreenState
   }
 
   void _reload() {
-    _offers = widget.healthWorkerMode
-        ? _loadOfferPage(reset: true)
-        : _repository.getGuardianSlotOffers(widget.guardianId!);
+    _nextOffset = 0;
+    _hasMore = false;
+    _totalCount = 0;
+    _pendingCount = 0;
+    _offers = _loadOfferPage(reset: true);
   }
 
   Future<List<AppointmentSlotOffer>> _loadOfferPage({
     required bool reset,
   }) async {
-    final page = await _repository.getFacilitySlotOffersPage(
-      status: _focusedId == null ? _filter : null,
-      initialOfferId: _focusedId,
-      limit: 20,
-      offset: reset ? 0 : _nextOffset,
-    );
+    final page = widget.healthWorkerMode
+        ? await _repository.getFacilitySlotOffersPage(
+            status: _focusedId == null ? _filter : null,
+            initialOfferId: _focusedId,
+            limit: 20,
+            offset: reset ? 0 : _nextOffset,
+          )
+        : await _repository.getGuardianSlotOffersPage(
+            widget.guardianId!,
+            status: _focusedId == null ? _filter : null,
+            initialOfferId: _focusedId,
+            limit: 20,
+            offset: reset ? 0 : _nextOffset,
+          );
     if (reset) _loadedOffers.clear();
     final ids = _loadedOffers.map((offer) => offer.id).toSet();
     _loadedOffers.addAll(page.items.where((offer) => ids.add(offer.id)));
@@ -74,11 +85,15 @@ class _EarlierAppointmentOffersScreenState
   }
 
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasMore || !widget.healthWorkerMode) return;
+    if (_loadingMore || !_hasMore) return;
     setState(() => _loadingMore = true);
     try {
       final offers = await _loadOfferPage(reset: false);
-      if (mounted) setState(() => _offers = Future.value(offers));
+      if (mounted) {
+        setState(() {
+          _offers = Future.value(offers);
+        });
+      }
     } finally {
       if (mounted) setState(() => _loadingMore = false);
     }
@@ -135,26 +150,19 @@ class _EarlierAppointmentOffersScreenState
       );
       if (!mounted) return;
       setState(_reload);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            accept
-                ? 'Earlier appointment accepted.'
-                : 'Original appointment retained.',
-          ),
-        ),
+      AppFeedback.success(
+        context,
+        message: accept
+            ? 'Earlier appointment accepted.'
+            : 'Original appointment retained.',
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserFacingError.message(
-              error,
-              fallback:
-                  'The appointment could not be updated. Please try again.',
-            ),
-          ),
+      AppFeedback.failure(
+        context,
+        message: UserFacingError.message(
+          error,
+          fallback: 'The appointment could not be updated. Please try again.',
         ),
       );
     } finally {
@@ -216,13 +224,7 @@ class _EarlierAppointmentOffersScreenState
                       )
                       .toList()
                     ..sort((a, b) => a.expiresAt.compareTo(b.expiresAt));
-              final pending = widget.healthWorkerMode
-                  ? _pendingCount
-                  : all
-                        .where(
-                          (o) => o.status == AppointmentSlotOfferStatus.pending,
-                        )
-                        .length;
+              final pending = _pendingCount;
               return RefreshIndicator(
                 onRefresh: _refresh,
                 child: ListView(
@@ -256,7 +258,7 @@ class _EarlierAppointmentOffersScreenState
                               selected: _filter == status,
                               onSelected: (_) {
                                 setState(() => _filter = status);
-                                if (widget.healthWorkerMode) _refresh();
+                                _refresh();
                               },
                             ),
                         ],
@@ -410,7 +412,7 @@ class _EarlierAppointmentOffersScreenState
                           ],
                         ),
                       ),
-                    if (widget.healthWorkerMode && visible.isNotEmpty) ...[
+                    if (visible.isNotEmpty) ...[
                       Text(
                         'Showing ${visible.length} of $_totalCount offers',
                         textAlign: TextAlign.center,

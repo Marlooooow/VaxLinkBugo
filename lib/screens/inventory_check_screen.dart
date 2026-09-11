@@ -12,11 +12,15 @@ import '../widgets/app_loading.dart';
 class InventoryCheckScreen extends StatefulWidget {
   final ChildProfile child;
   final List<String> vaccineIds;
+  final String? outreachSessionId;
+  final String? outreachTitle;
 
   const InventoryCheckScreen({
     super.key,
     required this.child,
     required this.vaccineIds,
+    this.outreachSessionId,
+    this.outreachTitle,
   });
 
   @override
@@ -38,9 +42,13 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
   }
 
   Future<void> _loadInventory() async {
-    final results = await _repository.getInventoryForVaccines(
-      widget.vaccineIds,
-    );
+    final allResults = widget.outreachSessionId == null
+        ? await _repository.getInventoryForVaccines(widget.vaccineIds)
+        : await RepositoryRegistry.instance.outreachRepository
+              .getSessionInventory(widget.outreachSessionId!);
+    final results = allResults
+        .where((item) => widget.vaccineIds.contains(item.vaccineId))
+        .toList(growable: false);
 
     if (!mounted) {
       return;
@@ -88,20 +96,25 @@ class _InventoryCheckScreenState extends State<InventoryCheckScreen> {
     }
   }
 
-  void _openAdministration(
+  Future<void> _openAdministration(
     List<VaccineInventory> vaccines, {
     List<VaccineInventory> unavailableVaccines = const [],
-  }) {
-    Navigator.push(
+  }) async {
+    final completed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => VaccineAdministrationScreen(
           child: widget.child,
           vaccines: vaccines,
           unavailableVaccines: unavailableVaccines,
+          outreachSessionId: widget.outreachSessionId,
+          outreachTitle: widget.outreachTitle,
         ),
       ),
     );
+    if (completed == true && mounted) {
+      Navigator.pop(context, true);
+    }
   }
 
   void _openReferral(List<VaccineInventory> vaccines) {

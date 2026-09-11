@@ -23,10 +23,22 @@ class ReminderVaccineCount {
 }
 
 class VaccinationReminder {
-  bool get hasUnreadNotification =>
-      !isRead &&
-      status != VaccinationReminderStatus.completed &&
-      status != VaccinationReminderStatus.dismissed;
+  bool get isInActionableWindow {
+    if (status == VaccinationReminderStatus.overdue ||
+        status == VaccinationReminderStatus.dueToday) {
+      return true;
+    }
+    if (status != VaccinationReminderStatus.upcoming) {
+      return false;
+    }
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final due = DateTime(dueDate.year, dueDate.month, dueDate.day);
+    return !due.isAfter(today.add(const Duration(days: 30)));
+  }
+
+  bool get hasUnreadNotification => !isRead && isInActionableWindow;
   final String id;
   final String reminderCode;
   final String guardianId;

@@ -38,7 +38,7 @@ class GuardianDashboardChildren extends StatefulWidget {
 
 class _GuardianDashboardChildrenState extends State<GuardianDashboardChildren> {
   String? _selectedChildId;
-  late Future<List<(ChildProfile, List<PnipScheduleEntry>, List<VaccinationReminder>)>> _rows;
+  late Future<List<(ChildProfile, List<PnipScheduleEntry>)>> _rows;
   @override
   void initState() {
     super.initState();
@@ -99,58 +99,20 @@ class _GuardianDashboardChildrenState extends State<GuardianDashboardChildren> {
     widget.onChanged();
   }
 
-  Future<List<(ChildProfile, List<PnipScheduleEntry>, List<VaccinationReminder>)>> _load() async {
-    final children = await (widget.children ?? RepositoryRegistry.instance.childRepository)
-        .getChildrenForGuardian(widget.guardianId);
-    final vaccinations = widget.vaccinations ?? RepositoryRegistry.instance.vaccinationRepository;
-    final reminders = widget.reminders ?? RepositoryRegistry.instance.reminderRepository;
-    final reminderRows = await reminders.getGuardianReminders(widget.guardianId);
-    final scheduleByChild = <String, List<PnipScheduleEntry>>{};
-    for (final child in children) {
-      scheduleByChild[child.id] = await vaccinations.getVaccinationSchedule(child);
-    }
-    return Future.wait(
-      children.map((child) async {
-        final schedule = scheduleByChild[child.id] ?? const <PnipScheduleEntry>[];
-        final childReminders = reminderRows.where((item) => item.childId == child.id).toList();
-        final mappedSchedule = schedule.map((entry) {
-            final matchingReminder = childReminders.firstWhere(
-              (reminder) => reminder.vaccineId == entry.vaccineId && reminder.doseNumber == entry.doseNumber,
-              orElse: () => VaccinationReminder(
-                id: '',
-                reminderCode: '',
-                guardianId: '',
-                childId: '',
-                childName: '',
-                vaccineId: '',
-                vaccineName: '',
-                doseNumber: 0,
-                dueDate: DateTime(1970),
-                status: VaccinationReminderStatus.upcoming,
-                channel: VaccinationReminderChannel.inApp,
-                isRead: false,
-                createdAt: DateTime(1970),
-                updatedAt: DateTime(1970),
-              ),
-            );
-            if (matchingReminder.id.isEmpty) return entry;
-            return PnipScheduleEntry(
-              vaccineId: entry.vaccineId,
-              vaccineName: entry.vaccineName,
-              doseNumber: entry.doseNumber,
-              scheduledDate: entry.scheduledDate,
-              status: switch (matchingReminder.status) {
-                VaccinationReminderStatus.completed => PnipDoseStatus.completed,
-                VaccinationReminderStatus.overdue => PnipDoseStatus.overdue,
-                VaccinationReminderStatus.dueToday => PnipDoseStatus.due,
-                VaccinationReminderStatus.upcoming => PnipDoseStatus.upcoming,
-                VaccinationReminderStatus.dismissed => PnipDoseStatus.completed,
-              },
-            );
-          }).toList();
-        return (child, mappedSchedule, childReminders);
-      }),
+  Future<List<(ChildProfile, List<PnipScheduleEntry>)>> _load() async {
+    final children =
+        await (widget.children ?? RepositoryRegistry.instance.childRepository)
+            .getChildrenForGuardian(widget.guardianId);
+    final vaccinations =
+        widget.vaccinations ??
+        RepositoryRegistry.instance.vaccinationRepository;
+    final scheduleByChild = await vaccinations.getVaccinationSchedules(
+      children,
     );
+    return [
+      for (final child in children)
+        (child, scheduleByChild[child.id] ?? const <PnipScheduleEntry>[]),
+    ];
   }
 
   @override
@@ -184,15 +146,24 @@ class _GuardianDashboardChildrenState extends State<GuardianDashboardChildren> {
         orElse: () => rows.first,
       );
       final progress = VaccinationProgress.fromSchedule(selected.$2);
-      final databaseReminders = selected.$3;
-      final dueToday = databaseReminders
-          .where((item) => item.status == VaccinationReminderStatus.dueToday)
+      final dueToday = selected.$2
+          .where((item) => item.status == PnipDoseStatus.due)
           .length;
-      final overdue = databaseReminders
-          .where((item) => item.status == VaccinationReminderStatus.overdue)
+      final overdue = selected.$2
+          .where((item) => item.status == PnipDoseStatus.overdue)
           .length;
-      final upcoming = databaseReminders
-          .where((item) => item.status == VaccinationReminderStatus.upcoming)
+      final now = DateTime.now();
+      final upcomingLimit = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).add(const Duration(days: 30));
+      final upcoming = selected.$2
+          .where(
+            (item) =>
+                item.status == PnipDoseStatus.upcoming &&
+                !item.scheduledDate.isAfter(upcomingLimit),
+          )
           .length;
       return Column(
         children: [
@@ -289,7 +260,7 @@ class _GuardianDashboardChildrenState extends State<GuardianDashboardChildren> {
                         ),
                       ),
                       DashboardStat(
-                        'Upcoming',
+                        'Upcoming (30 days)',
                         upcoming,
                         Icons.event_outlined,
                         const Color(0xFF5065A1),

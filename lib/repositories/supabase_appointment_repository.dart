@@ -14,13 +14,55 @@ class SupabaseAppointmentRepository implements AppointmentRepository {
   @override
   Future<List<VaccinationAppointment>> getGuardianAppointments(
     String guardianId,
-  ) async {
+  ) async => (await getGuardianAppointmentsPage(guardianId, limit: 50)).items;
+
+  @override
+  Future<AppointmentPage> getGuardianAppointmentsPage(
+    String guardianId, {
+    String? initialAppointmentId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
     final id = await _access.guardianId(guardianId);
+    final payload = Map<String, dynamic>.from(
+      await _client.rpc(
+            'get_guardian_appointment_page',
+            params: {
+              'p_guardian_id': id,
+              'p_appointment_id': initialAppointmentId,
+              'p_page_size': limit,
+              'p_page_offset': offset,
+            },
+          )
+          as Map,
+    );
+    final items = (payload['items'] as List? ?? const [])
+        .map((row) => fromRow(Map<String, dynamic>.from(row as Map)))
+        .toList(growable: false);
+    return AppointmentPage(
+      items: items,
+      totalCount: (payload['total_count'] as num?)?.toInt() ?? items.length,
+      hasMore: payload['has_more'] as bool? ?? false,
+      nextOffset: (payload['next_offset'] as num?)?.toInt() ?? offset,
+    );
+  }
+
+  @override
+  Future<List<VaccinationAppointment>> getGuardianUpcomingAppointments(
+    String guardianId, {
+    int limit = 2,
+  }) async {
+    final id = await _access.guardianId(guardianId);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final rows = await _client
         .from('appointments')
         .select(_select)
         .eq('guardian_id', id)
-        .order('scheduled_for');
+        .gte('scheduled_for', today.toIso8601String())
+        .inFilter('status', const ['scheduled', 'confirmed', 'checked_in'])
+        .order('scheduled_for')
+        .limit(limit.clamp(1, 10).toInt());
     return rows.map(fromRow).toList(growable: false);
   }
 
@@ -101,7 +143,46 @@ class SupabaseAppointmentRepository implements AppointmentRepository {
   @override
   Future<List<AppointmentSlotOffer>> getGuardianSlotOffers(
     String guardianId,
-  ) async => _offers(guardianId: await _access.guardianId(guardianId));
+  ) async => (await getGuardianSlotOffersPage(guardianId, limit: 50)).items;
+
+  @override
+  Future<AppointmentOfferPage> getGuardianSlotOffersPage(
+    String guardianId, {
+    AppointmentSlotOfferStatus? status,
+    String? initialOfferId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final id = await _access.guardianId(guardianId);
+    final payload = Map<String, dynamic>.from(
+      await _client.rpc(
+            'get_guardian_appointment_offer_page',
+            params: {
+              'p_guardian_id': id,
+              'p_status': status?.name,
+              'p_offer_id': initialOfferId,
+              'p_page_size': limit,
+              'p_page_offset': offset,
+            },
+          )
+          as Map,
+    );
+    final items = (payload['items'] as List? ?? const [])
+        .map(
+          (row) => AppointmentSlotOffer.fromJson(
+            Map<String, dynamic>.from(row as Map),
+          ),
+        )
+        .toList(growable: false);
+    return AppointmentOfferPage(
+      items: items,
+      totalCount: (payload['total_count'] as num?)?.toInt() ?? items.length,
+      pendingCount: (payload['pending_count'] as num?)?.toInt() ?? 0,
+      hasMore: payload['has_more'] as bool? ?? false,
+      nextOffset: (payload['next_offset'] as num?)?.toInt() ?? offset,
+    );
+  }
+
   @override
   Future<List<AppointmentSlotOffer>> getFacilitySlotOffers() async =>
       _offers(facilityId: await _access.staffFacilityId());

@@ -23,8 +23,37 @@ abstract class StaffNotificationRepository {
   Future<int> unreadCount(String userId);
   bool isRead(String userId, String notificationId);
   Future<void> markRead(String userId, Iterable<String> notificationIds);
-  Future<String> resetGuardianPassword(String requestId);
-  Future<String> resetGuardianPasswordForGuardian(String guardianId);
+  Future<GuardianPasswordResetResult> resetGuardianPassword(String requestId);
+  Future<GuardianPasswordResetResult> resetGuardianPasswordForGuardian(
+    String guardianId,
+  );
+}
+
+class GuardianPasswordResetResult {
+  final String loginId;
+  final String temporaryPassword;
+
+  const GuardianPasswordResetResult({
+    required this.loginId,
+    required this.temporaryPassword,
+  });
+}
+
+class GuardianPasswordResetException implements Exception {
+  final String message;
+  final int? status;
+  final String? reason;
+  final Object? details;
+
+  const GuardianPasswordResetException({
+    required this.message,
+    this.status,
+    this.reason,
+    this.details,
+  });
+
+  @override
+  String toString() => message;
 }
 
 class UnavailableStaffNotificationRepository
@@ -59,10 +88,19 @@ class UnavailableStaffNotificationRepository
     Iterable<String> notificationIds,
   ) async {}
   @override
-  Future<String> resetGuardianPassword(String requestId) async => 'guardian123';
+  Future<GuardianPasswordResetResult> resetGuardianPassword(
+    String requestId,
+  ) async => const GuardianPasswordResetResult(
+    loginId: 'DEMO-GUARDIAN',
+    temporaryPassword: 'guardian123',
+  );
   @override
-  Future<String> resetGuardianPasswordForGuardian(String guardianId) async =>
-      'guardian123';
+  Future<GuardianPasswordResetResult> resetGuardianPasswordForGuardian(
+    String guardianId,
+  ) async => const GuardianPasswordResetResult(
+    loginId: 'DEMO-GUARDIAN',
+    temporaryPassword: 'guardian123',
+  );
 }
 
 /// In-app prototype adapter. Source records remain owned by their repositories.
@@ -111,10 +149,19 @@ class MockStaffNotificationRepository implements StaffNotificationRepository {
   }
 
   @override
-  Future<String> resetGuardianPassword(String requestId) async => 'guardian123';
+  Future<GuardianPasswordResetResult> resetGuardianPassword(
+    String requestId,
+  ) async => const GuardianPasswordResetResult(
+    loginId: 'DEMO-GUARDIAN',
+    temporaryPassword: 'guardian123',
+  );
   @override
-  Future<String> resetGuardianPasswordForGuardian(String guardianId) async =>
-      'guardian123';
+  Future<GuardianPasswordResetResult> resetGuardianPasswordForGuardian(
+    String guardianId,
+  ) async => const GuardianPasswordResetResult(
+    loginId: 'DEMO-GUARDIAN',
+    temporaryPassword: 'guardian123',
+  );
 
   @override
   Future<List<StaffNotification>> load() async {
@@ -298,7 +345,17 @@ class SupabaseStaffNotificationRepository
   final Set<String> _readIds = {};
   final ValueNotifier<int> _changes = ValueNotifier<int>(0);
 
-  SupabaseStaffNotificationRepository(this._client, this.registry);
+  SupabaseStaffNotificationRepository(this._client, this.registry) {
+    _client
+        .channel('staff-guardian-password-resets')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'guardian_password_reset_requests',
+          callback: (_) => _changes.value++,
+        )
+        .subscribe();
+  }
 
   @override
   Listenable get changes => _changes;
@@ -365,43 +422,86 @@ class SupabaseStaffNotificationRepository
   }
 
   @override
-  Future<String> resetGuardianPassword(String requestId) async {
-    final result = await _client.functions.invoke(
-      'reset-guardian-password',
-      body: {'request_id': requestId},
-    );
+  Future<GuardianPasswordResetResult> resetGuardianPassword(
+    String requestId,
+  ) async {
+    final result = await _invokePasswordReset({'request_id': requestId});
     if (result.status < 200 || result.status >= 300 || result.data is! Map) {
       final data = result.data;
       final message = data is Map && data['error'] is String
           ? data['error'] as String
           : 'The guardian password could not be reset.';
-      throw StateError(message);
+      throw GuardianPasswordResetException(
+        message: message,
+        status: result.status,
+        reason: 'Unexpected Edge Function response',
+        details: data,
+      );
     }
-    final password = result.data['temporary_password'];
-    if (password is! String || password.isEmpty) {
-      throw StateError('The reset completed without a temporary password.');
-    }
-    return password;
+    final reset = _passwordResetResult(result.data);
+    _changes.value++;
+    return reset;
   }
 
   @override
-  Future<String> resetGuardianPasswordForGuardian(String guardianId) async {
-    final result = await _client.functions.invoke(
-      'reset-guardian-password',
-      body: {'guardian_id': guardianId},
-    );
+  Future<GuardianPasswordResetResult> resetGuardianPasswordForGuardian(
+    String guardianId,
+  ) async {
+    final result = await _invokePasswordReset({'guardian_id': guardianId});
     if (result.status < 200 || result.status >= 300 || result.data is! Map) {
       final data = result.data;
       final message = data is Map && data['error'] is String
           ? data['error'] as String
           : 'The guardian password could not be reset.';
-      throw StateError(message);
+      throw GuardianPasswordResetException(
+        message: message,
+        status: result.status,
+        reason: 'Unexpected Edge Function response',
+        details: data,
+      );
     }
-    final password = result.data['temporary_password'];
-    if (password is! String || password.isEmpty) {
-      throw StateError('The reset completed without a temporary password.');
+    final reset = _passwordResetResult(result.data);
+    _changes.value++;
+    return reset;
+  }
+
+  GuardianPasswordResetResult _passwordResetResult(dynamic data) {
+    final loginId = data['login_id'];
+    final password = data['temporary_password'];
+    if (loginId is! String ||
+        loginId.isEmpty ||
+        password is! String ||
+        password.isEmpty) {
+      throw StateError(
+        'The reset completed without complete guardian login credentials.',
+      );
     }
-    return password;
+    return GuardianPasswordResetResult(
+      loginId: loginId,
+      temporaryPassword: password,
+    );
+  }
+
+  Future<FunctionResponse> _invokePasswordReset(
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      return await _client.functions.invoke(
+        'reset-guardian-password',
+        body: body,
+      );
+    } on FunctionException catch (error) {
+      final details = error.details;
+      final message = details is Map && details['error'] is String
+          ? details['error'] as String
+          : 'The guardian password could not be reset.';
+      throw GuardianPasswordResetException(
+        message: message,
+        status: error.status,
+        reason: error.reasonPhrase,
+        details: details,
+      );
+    }
   }
 
   Future<void> _loadPasswordResetNotifications(

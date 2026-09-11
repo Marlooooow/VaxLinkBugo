@@ -44,7 +44,10 @@ class _DashboardAppointmentsState extends State<DashboardAppointments> {
         widget.repository ?? RepositoryRegistry.instance.appointmentRepository;
     _rows = widget.guardianId == null
         ? _repository.getFacilityUpcomingAppointments(limit: 2)
-        : _repository.getGuardianAppointments(widget.guardianId!);
+        : _repository.getGuardianUpcomingAppointments(
+            widget.guardianId!,
+            limit: 2,
+          );
   }
 
   Future<void> _open([String? id]) async {

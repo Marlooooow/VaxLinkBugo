@@ -9,6 +9,7 @@ import '../repositories/inventory_repository.dart';
 import '../utils/number_formatter.dart';
 import 'inventory_stock_action_screen.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/app_feedback.dart';
 
 class VaccineInventoryDetailsScreen extends StatefulWidget {
   final String vaccineId;
@@ -80,7 +81,11 @@ class _VaccineInventoryDetailsScreenState
         offset: data.nextBatchOffset,
       );
       final next = data.copyWithBatchPage(page);
-      if (mounted) setState(() => _details = Future.value(next));
+      if (mounted) {
+        setState(() {
+          _details = Future.value(next);
+        });
+      }
     } finally {
       if (mounted) setState(() => _loadingBatches = false);
     }
@@ -95,7 +100,11 @@ class _VaccineInventoryDetailsScreenState
         offset: data.nextTransactionOffset,
       );
       final next = data.copyWithTransactionPage(page);
-      if (mounted) setState(() => _details = Future.value(next));
+      if (mounted) {
+        setState(() {
+          _details = Future.value(next);
+        });
+      }
     } finally {
       if (mounted) setState(() => _loadingTransactions = false);
     }
@@ -105,15 +114,15 @@ class _VaccineInventoryDetailsScreenState
     InventoryStockAction action,
     _InventoryDetailsData data,
   ) async {
-    final actionBatches = await widget.repository.getBatches(widget.vaccineId);
-    if (!mounted) return;
     final result = await Navigator.push<InventoryStockActionResult>(
       context,
       MaterialPageRoute(
         builder: (_) => InventoryStockActionScreen(
           action: action,
           inventory: data.inventory,
-          batches: actionBatches,
+          batches: data.batches,
+          hasMoreBatches: data.hasMoreBatches,
+          nextBatchOffset: data.nextBatchOffset,
           repository: widget.repository,
         ),
       ),
@@ -142,9 +151,7 @@ class _VaccineInventoryDetailsScreenState
       _ => 'Stock updated successfully.',
     };
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AppFeedback.success(context, message: message);
   }
 
   Future<void> _refreshAfterStockWrite() async {
@@ -165,15 +172,12 @@ class _VaccineInventoryDetailsScreenState
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserFacingError.message(
-              error,
-              fallback:
-                  'Stock was saved, but the latest stock data could not be loaded.',
-            ),
-          ),
+      AppFeedback.failure(
+        context,
+        message: UserFacingError.message(
+          error,
+          fallback:
+              'Stock was saved, but the latest stock data could not be loaded.',
         ),
       );
     }

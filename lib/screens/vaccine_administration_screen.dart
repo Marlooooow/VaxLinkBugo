@@ -20,12 +20,16 @@ class VaccineAdministrationScreen extends StatefulWidget {
 
   // Vaccines that were due but unavailable at this facility.
   final List<VaccineInventory> unavailableVaccines;
+  final String? outreachSessionId;
+  final String? outreachTitle;
 
   const VaccineAdministrationScreen({
     super.key,
     required this.child,
     required this.vaccines,
     this.unavailableVaccines = const [],
+    this.outreachSessionId,
+    this.outreachTitle,
   });
 
   @override
@@ -178,13 +182,21 @@ class _VaccineAdministrationScreenState
           screeningId: screening.id,
         );
       }).toList();
-      await _vaccinationRepository.completeAdministration(
-        screening: screening,
-        records: records,
-        dosesByVaccineId: {
-          for (final vaccine in selectedInventory) vaccine.vaccineId: 1,
-        },
-      );
+      if (widget.outreachSessionId == null) {
+        await _vaccinationRepository.completeAdministration(
+          screening: screening,
+          records: records,
+          dosesByVaccineId: {
+            for (final vaccine in selectedInventory) vaccine.vaccineId: 1,
+          },
+        );
+      } else {
+        await RepositoryRegistry.instance.outreachRepository.recordVaccinations(
+          sessionId: widget.outreachSessionId!,
+          screening: screening,
+          records: records,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _saving = false;
@@ -203,7 +215,11 @@ class _VaccineAdministrationScreenState
         return;
       }
 
-      await _showAdministrationSuccessDialog(records.length);
+      final viewedProfile = await _showAdministrationSuccessDialog(
+        records.length,
+      );
+      if (!mounted || viewedProfile) return;
+      Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -249,7 +265,11 @@ class _VaccineAdministrationScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Done'),
+            child: Text(
+              widget.outreachSessionId == null
+                  ? 'Back to assessment'
+                  : 'Scan next child',
+            ),
           ),
           ElevatedButton.icon(
             onPressed: () {

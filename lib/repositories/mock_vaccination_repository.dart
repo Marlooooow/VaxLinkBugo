@@ -147,6 +147,13 @@ class MockVaccinationRepository implements VaccinationRepository {
   }
 
   @override
+  Future<Map<String, List<PnipScheduleEntry>>> getVaccinationSchedules(
+    List<ChildProfile> children,
+  ) async => {
+    for (final child in children) child.id: await getVaccinationSchedule(child),
+  };
+
+  @override
   Future<List<VaccinationRecord>> recordVaccinations(
     List<VaccinationRecord> records,
   ) async {
@@ -288,8 +295,8 @@ class MockVaccinationRepository implements VaccinationRepository {
       id: identity.id,
       reviewCode: identity.code,
       childId: review.childId,
-      hasDocumentedPreviousVaccinations:
-          review.hasDocumentedPreviousVaccinations,
+      historyStatus: review.historyStatus,
+      notes: review.notes,
       reviewedAt: DateTime.now(),
       reviewedByUserId: '00000000-0000-4000-8000-000000000201',
     );

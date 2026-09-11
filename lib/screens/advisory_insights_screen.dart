@@ -9,6 +9,7 @@ import 'vaccine_inventory_details_screen.dart';
 import 'vaccination_reminders_screen.dart';
 import 'vaccination_appointments_screen.dart';
 import '../widgets/app_loading.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/worker_app_bar_actions.dart';
 
 class AdvisoryInsightsScreen extends StatefulWidget {
@@ -148,25 +149,19 @@ class _AdvisoryInsightsScreenState extends State<AdvisoryInsightsScreen> {
           );
         }
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            status == AdvisoryInsightStatus.reviewed
-                ? 'Insight marked as reviewed.'
-                : 'Insight dismissed.',
-          ),
-        ),
+      AppFeedback.success(
+        context,
+        message: status == AdvisoryInsightStatus.reviewed
+            ? 'Insight marked as reviewed.'
+            : 'Insight dismissed.',
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            UserFacingError.message(
-              error,
-              fallback: 'The insight could not be updated. Please try again.',
-            ),
-          ),
+      AppFeedback.failure(
+        context,
+        message: UserFacingError.message(
+          error,
+          fallback: 'The insight could not be updated. Please try again.',
         ),
       );
     } finally {
@@ -679,7 +674,6 @@ class _InsightCard extends StatelessWidget {
       ],
     ),
   );
-
 }
 
 class _StatusBadge extends StatelessWidget {
